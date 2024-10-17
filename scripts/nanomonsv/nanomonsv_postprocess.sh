@@ -9,12 +9,12 @@ SAMPLE=$1
 OUTPUT_DIR=$2
 SIMPLE_REPEAT=$3
 BAM_FILE=$4
+
 REFERENCE=${OUTPUT_DIR}/reference.fa
 
 if [ -n $REFERENCE ]; then
     exit(1)
 fi
-
 
 python3 /tools/nanomonsv/misc/add_simple_repeat.py \
     ${OUTPUT_DIR}/${SAMPLE}.nanomonsv.result.txt \

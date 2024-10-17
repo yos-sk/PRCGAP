@@ -11,12 +11,12 @@ WORK_DIR=$5
 OUTPUT_DIR=$6
 DATA=$7
 
-singularity exec ../images/bam_refiner_v0.3.3.sif \
+singularity exec ./images/bam_refiner_v0.3.3.sif \
     /bin/bash \
-    bam_refiner.sh \
+    ./scripts/bam_refiner/bam_refiner.sh \
     $SAMPLE \
     $ASSEMBLY_HAP1 \
-    $ASSEMBLY_HAP \
+    $ASSEMBLY_HAP2 \
     $FASTQ \
     true \
     $WORK_DIR \

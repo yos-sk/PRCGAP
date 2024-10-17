@@ -12,17 +12,18 @@ NORMAL_BAM=$6
 REFERENCE=$7
 WORK_DIR=$8
 OUTPUT_DIR=$9
-DNANN_MODEL=${10}
+SEX=${10}
 
-singularity exec ../CN_utils-latest.sif \
-   copynumber.sh \
+singularity exec ./images/CN_utils-v0.1.3.sif \
+   bash ./scripts/copynumber/copynumber.sh \
         ${TUMOR} \
         ${NORMAL} \
         ${ASSEMBLY_HAP1} \
         ${ASSEMBLY_HAP2} \
         ${TUMOR_BAM} \
         ${NORMAL_BAM} \
-        ${REFERECNE} \
+        ${REFERENCE} \
         ${WORK_DIR} \
         ${OUTPUT_DIR} \
-        /tools/models/attcc-alpha.knm 
+        /tools/dna-nn/models/attcc-alpha.knm \
+        ${SEX}

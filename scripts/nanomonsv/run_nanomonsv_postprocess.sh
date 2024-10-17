@@ -8,8 +8,8 @@ OUTPUT_DIR=$2
 SIMPLE_REPEAT=$3
 BAM_FILE=$4
 
-singularity exec ../images/nannomonsv_postprocess-0.2.3.sif \
-    bash nanomonsv_postprocess.sh \
+singularity exec ./images/nannomonsv_postprocess-0.2.3.sif \
+    bash ./scripts/nanomonsv/nanomonsv_postprocess.sh \
         ${SAMPLE} \
         ${OUTPUT_DIR} \
         ${SIMPLE_REPEAT} \

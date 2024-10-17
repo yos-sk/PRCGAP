@@ -1,5 +1,10 @@
 #!/bin/bash
 
+set -xv
+set -o errexit
+set -o nounset
+set -o pipefail
+
 TUMOR=$1
 NORMAL=$2
 ASSEMBLY_HAP1=$3
@@ -10,13 +15,13 @@ REFERENCE=$7
 WORK_DIR=$8
 OUTPUT_DIR=$9
 DNANN_MODEL=${10}
-
-set -xv
-set -o errexit
-set -o nounset
-set -o pipefail
+SEX=${11}
 
 mkdir -p ${WORK_DIR}
+if [ ${SEX} = "female" ]; then
+    awk '/^>/ {p = ($0 !~ /^>chrY/)} p' ${REFERENCE} > ${WORK_DIR}/reference_noY.fa
+    REFERENCE=${WORK_DIR}/reference_noY.fa
+fi
 
 for hap in hap1 hap2
 do
@@ -37,7 +42,7 @@ do
         > ${WORK_DIR}/${NORMAL}.${hap}.masked.fa
 
     # 2. Align ref to contigs
-    ~/bin/minimap2/2.26/minimap2/minimap2 -cx asm5 -t 16 ${WORK_DIR}/${NORMAL}.${hap}.masked.fa ${REFERENCE} > ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.paf
+    minimap2 -cx asm5 -t 16 ${WORK_DIR}/${NORMAL}.${hap}.masked.fa ${REFERENCE} > ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.paf
     grep -v 'tp:A:S' ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.paf > ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.rmsec.paf
 
     # 3. Make correspondence table between contigs and ref

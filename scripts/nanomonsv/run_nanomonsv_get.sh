@@ -8,12 +8,12 @@ NORMAL=$2
 TUMOR_BAM=$3
 NORMAL_BAM=$4
 OUTPUT_DIR=$5
-ASSENBLY_HAP1=$6
-ASSENBLY_HAP2=$7
+ASSEMBLY_HAP1=$6
+ASSEMBLY_HAP2=$7
 DATA=$8
 
-singularity exec nanomonsv-latest.sif \
-    bash nanomonsv_get.sh \
+singularity exec ./images/nanomonsv-devel.sif \
+    bash ./scripts/nanomonsv/nanomonsv_get.sh \
         ${TUMOR} \
         ${NORMAL} \
         ${TUMOR_BAM} \

@@ -10,8 +10,8 @@ NORMAL=$2
 TUMOR_BAM=$3
 NORMAL_BAM=$4
 OUTPUT_DIR=$5
-ASSENBLY_HAP1=$6
-ASSENBLY_HAP2=$7
+ASSEMBLY_HAP1=$6
+ASSEMBLY_HAP2=$7
 DATA=$8
 
 TUMOR_PREFIX=${OUTPUT_DIR}/${TUMOR}
@@ -35,7 +35,7 @@ else
     nanomonsv get \
         ${TUMOR_PREFIX} \
         ${TUMOR_BAM} \
-        ${REFERENCE} \
+        ${OUTPUT_DIR}/reference.fa \
         --control_prefix ${NORMAL_PREFIX} \
         --control_bam ${NORMAL_BAM} \
         --processes 8 \

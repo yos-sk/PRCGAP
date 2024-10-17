@@ -12,8 +12,8 @@ SAMPLE=$1
 INPUT_BAM=$2
 OUTPUT_DIR=$3
 
-singularity exec ../images/nanomonsv-latest.sif \
-    bash nanomonsv_parse.sh \
+singularity exec ./images/nanomonsv-devel.sif \
+    bash ./scripts/nanomonsv/nanomonsv_parse.sh \
     ${SAMPLE} \
     ${INPUT_BAM} \
     ${OUTPUT_DIR}
