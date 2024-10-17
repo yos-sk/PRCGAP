@@ -28,7 +28,7 @@ if [ ${TUMOR_METHYLATION_HIFI} != ${TUMOR_HIFI} ]; then
         ${TUMOR} \
         ${ASSEMBLY_HAP1} \
         ${ASSEMBLY_HAP2} \
-        ${INPUT_FASTQ} \
+        ${TUMOR_METHYLATION_HIFI} \
         ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/methylation_hifi/workspace \
         ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/methylation_hifi/output \
         hifi
@@ -40,7 +40,7 @@ if [ ${CONTROL_METHYLATION_HIFI} != ${CONTROL_HIFI} ]; then
         ${CONTROL} \
         ${ASSEMBLY_HAP1} \
         ${ASSEMBLY_HAP2} \
-        ${INPUT_FASTQ} \
+        ${CONTROL_METHYLATION_HIFI} \
         ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/hifi/workspace \
         ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/hifi/output \
         hifi
@@ -68,8 +68,7 @@ done
 # 4. copynumber
 TUMOR_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_bam_refiner_hifi) | cut -d ' ' -f 2)
 NORMAL_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_bam_refiner_hifi) | cut -d ' ' -f 2)
-#sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${NORMAL_BAM_REFINER_JOBID} -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
-sbatch -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
+sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${NORMAL_BAM_REFINER_JOBID} -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
     scripts/copynumber/run_copynumber.sh \
         ${TUMOR} \
         ${CONTROL} \
@@ -97,8 +96,7 @@ done
 # 6. nanomonsv get hifi
 TUMOR_NANOMONSV_PARSE_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_nanomonsv_parse_hifi) | cut -d ' ' -f 2)
 CONTROL_NANOMONSV_PARSE_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_nanomonsv_parse_hifi) | cut -d ' ' -f 2)
-#sbatch --dependency=afterok:${TUMOR_NANOMONSV_PARSE_JOBID},${CONTROL_NANOMONSV_PARSE_JOBID} -J ${TUMOR}_nanomonsv_get_hifi -e log/${TUMOR}_nanomonsv_get_hifi.err -o log/${TUMOR}_nanomonsv_get_hifi.out \
-sbatch -J ${TUMOR}_nanomonsv_get_hifi -e log/${TUMOR}_nanomonsv_get_hifi.err -o log/${TUMOR}_nanomonsv_get_hifi.out \
+sbatch --dependency=afterok:${TUMOR_NANOMONSV_PARSE_JOBID},${CONTROL_NANOMONSV_PARSE_JOBID} -J ${TUMOR}_nanomonsv_get_hifi -e log/${TUMOR}_nanomonsv_get_hifi.err -o log/${TUMOR}_nanomonsv_get_hifi.out \
     scripts/nanomonsv/run_nanomonsv_get.sh \
         ${TUMOR} \
         ${CONTROL} \
@@ -131,8 +129,7 @@ done
 # 9. nanomonsv get ont
 TUMOR_NANOMONSV_PARSE_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_nanomonsv_parse_ont) | cut -d ' ' -f 2)
 CONTROL_NANOMONSV_PARSE_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_nanomonsv_parse_ont) | cut -d ' ' -f 2)
-#sbatch --dependency=afterok:${TUMOR_NANOMONSV_PARSE_JOBID},${CONTROL_NANOMONSV_PARSE_JOBID} -J ${TUMOR}_nanomonsv_get_ont -e log/${TUMOR}_nanomonsv_get_ont.err -o log/${TUMOR}_nanomonsv_get_ont.out \
-sbatch -J ${TUMOR}_nanomonsv_get_ont -e log/${TUMOR}_nanomonsv_get_ont.err -o log/${TUMOR}_nanomonsv_get_ont.out \
+sbatch --dependency=afterok:${TUMOR_NANOMONSV_PARSE_JOBID},${CONTROL_NANOMONSV_PARSE_JOBID} -J ${TUMOR}_nanomonsv_get_ont -e log/${TUMOR}_nanomonsv_get_ont.err -o log/${TUMOR}_nanomonsv_get_ont.out \
     scripts/nanomonsv/run_nanomonsv_get.sh \
         ${TUMOR} \
         ${CONTROL} \
@@ -157,8 +154,7 @@ sbatch --dependency=afterok:${NANOMONSV_GET_JOBID} -J ${TUMOR}_nanomonsv_postpro
 # 12. clairs
 TUMOR_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_bam_refiner_hifi) | cut -d ' ' -f 2)
 CONTROL_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_bam_refiner_hifi) | cut -d ' ' -f 2)
-#sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${CONTROL_BAM_REFINER_JOBID} -J ${TUMOR}_clairs -e ./log/${TUMOR}_clairs.err -o ./log/${TUMOR}_clairs.out \
-sbatch -J ${TUMOR}_clairs -e ./log/${TUMOR}_clairs.err -o ./log/${TUMOR}_clairs.out \
+sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${CONTROL_BAM_REFINER_JOBID} -J ${TUMOR}_clairs -e ./log/${TUMOR}_clairs.err -o ./log/${TUMOR}_clairs.out \
     scripts/clairs/run_clairs.sh \
         ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
         ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/hifi/output/${CONTROL}_bam_refined.sorted.bam \
