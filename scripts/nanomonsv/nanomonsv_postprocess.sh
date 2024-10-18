@@ -7,19 +7,14 @@ set -o pipefail
 
 SAMPLE=$1
 OUTPUT_DIR=$2
-SIMPLE_REPEAT=$3
-BAM_FILE=$4
+BAM_FILE=$3
 
 REFERENCE=${OUTPUT_DIR}/reference.fa
 
-if [ -n $REFERENCE ]; then
-    exit(1)
+if [ ! -e $REFERENCE ]; then
+    exit 1
 fi
 
-python3 /tools/nanomonsv/misc/add_simple_repeat.py \
-    ${OUTPUT_DIR}/${SAMPLE}.nanomonsv.result.txt \
-    ${OUTPUT_DIR}/${SAMPLE}.nanomonsv.result.filt.txt \
-    ${SIMPLE_REPEAT}
 
 if [ -e ${OUTPUT_DIR}/${SAMPLE}.nanomonsv.result.filt.pass_low_vaf.txt ]; then
     rm  ${OUTPUT_DIR}/${SAMPLE}.nanomonsv.result.filt.pass_low_vaf.txt
@@ -43,6 +38,7 @@ nanomonsv_postprocess realignment \
     -d 98 \
     -l 160 \
     1>${OUTPUT_DIR}/${SAMPLE}.nanomonsv.group_info.txt 2>${OUTPUT_DIR}/${SAMPLE}.nanomonsv.pair_info.txt
+
 
 nanomonsv_postprocess filt \
     -i ${OUTPUT_DIR}/${SAMPLE}.nanomonsv.group_info.txt \

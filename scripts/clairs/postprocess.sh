@@ -9,9 +9,14 @@ ASSEMBLY_HAP1=$2
 ASSEMBLY_HAP2=$3
 WORK_DIR=$4
 OUTPUT_DIR=$5
+CHAINFILE=$6
 
+mkdir -p ${WORK_DIR}
+mkdir -p ${OUTPUT_DIR}
 cat ${ASSEMBLY_HAP1} ${ASSEMBLY_HAP2} > ${WORK_DIR}/reference.fa
-python3 parse_vcf.py \
+samtools faidx ${WORK_DIR}/reference.fa
+
+python3 /tools/mutation_postprocess/scripts/parse_vcf.py \
     ${CLAIRS_RESULTS} > ${WORK_DIR}/output.parsed.bed
 
 coordconv \

@@ -14,8 +14,13 @@ WORK_DIR=$8
 OUTPUT_DIR=$9
 SEX=${10}
 
-singularity exec ./images/CN_utils-v0.1.3.sif \
-   bash ./scripts/copynumber/copynumber.sh \
+ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
+REFERENCE_DIR=`dirname ${REFERENCE}`
+
+singularity exec \
+    --bind ${ASSEMBLY_DIR}/,${REFERENCE_DIR}/ \
+    ./images/CN_utils-v0.1.3.sif \
+    bash ./scripts/copynumber/copynumber.sh \
         ${TUMOR} \
         ${NORMAL} \
         ${ASSEMBLY_HAP1} \

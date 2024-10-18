@@ -1,10 +1,5 @@
 #!/bin/bash
 
-set -xv
-set -o errexit
-set -o nounset
-set -o pipefail
-
 SAMPLE=$1
 hap1_contig=$2
 hap2_contig=$3
@@ -14,6 +9,12 @@ WORK_DIR=$6
 OUTPUT_DIR=$7
 THREAD=$8
 DATA=$9
+
+set -xv
+set -o errexit
+set -o nounset
+set -o pipefail
+
 
 
 # Step1: Mapping
@@ -33,7 +34,6 @@ rm ${OUTPUT_BAM_PREFIX}.unsorted
 mkdir -p ${WORK_DIR}/meryl
 meryl count k=21 threads=${THREAD} ${hap1_contig} output ${WORK_DIR}/meryl/hap1.meryl
 meryl count k=21 threads=${THREAD} ${hap2_contig} output ${WORK_DIR}/meryl/hap2.meryl
-
 
 meryl difference ${WORK_DIR}/meryl/hap1.meryl ${WORK_DIR}/meryl/hap2.meryl output ${WORK_DIR}/meryl/hap1.uniq.meryl
 meryl difference ${WORK_DIR}/meryl/hap2.meryl ${WORK_DIR}/meryl/hap1.meryl output ${WORK_DIR}/meryl/hap2.uniq.meryl
@@ -70,7 +70,6 @@ gzip -f ${OUTPUT_DIR}/hap1_list.txt
 grep ">" ${hap2_contig} | sed s/\>// > ${OUTPUT_DIR}/hap2_list.txt
 gzip -f ${OUTPUT_DIR}/hap2_list.txt
 
-
 # Step 4: Refine BAM file
 if [ $OPTION_SPLIT = "true" ]
 then
@@ -81,7 +80,7 @@ then
         --output-dir ${WORK_DIR}/split \
         --input-size ${SIZE} \
         --num-split ${THREAD}
-    
+   
 
     for i in $(seq 0 $(( ${THREAD} - 1))); do
         bam_refiner refine \

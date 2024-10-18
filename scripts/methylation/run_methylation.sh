@@ -11,10 +11,11 @@ OUTPUT_DIR=$5
 ASSEMBLY_HAP1=$6
 ASSEMBLY_HAP2=$7
 
-INPUT_BAM_DIR=`dirname ${INPUT_MODBAM}`
+INPUT_MODBAM_DIR=`dirname ${INPUT_MODBAM}`
+ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
 
 singularity exec \
-    --bind ${INPUT_BAN_DIR}/ \
+    --bind ${INPUT_MODBAM_DIR}/,${ASSEMBLY_DIR}/ \
     ./images/methylation_utils-v0.1.1.sif \
     bash ./scripts/methylation/methylation.sh \
         ${SAMPLE} \

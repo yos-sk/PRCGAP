@@ -11,8 +11,14 @@ OUTPUT_DIR=$5
 ASSEMBLY_HAP1=$6
 ASSEMBLY_HAP2=$7
 DATA=$8
+SIMPLE_REPEAT=$9
 
-singularity exec ./images/nanomonsv-devel.sif \
+ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
+SIMPLE_REPEAT_DIR=`dirname ${SIMPLE_REPEAT}`
+
+singularity exec \
+    --bind ${ASSEMBLY_DIR}/,${SIMPLE_REPEAT_DIR}/ \
+    ./images/nanomonsv-devel.sif \
     bash ./scripts/nanomonsv/nanomonsv_get.sh \
         ${TUMOR} \
         ${NORMAL} \
@@ -21,4 +27,5 @@ singularity exec ./images/nanomonsv-devel.sif \
         ${OUTPUT_DIR} \
         ${ASSEMBLY_HAP1} \
         ${ASSEMBLY_HAP2} \
-        ${DATA}
+        ${DATA} \
+        ${SIMPLE_REPEAT}

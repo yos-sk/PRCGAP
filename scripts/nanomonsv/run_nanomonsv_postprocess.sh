@@ -5,13 +5,12 @@
 
 SAMPLE=$1
 OUTPUT_DIR=$2
-SIMPLE_REPEAT=$3
-BAM_FILE=$4
+BAM_FILE=$3
 
-singularity exec ./images/nannomonsv_postprocess-0.2.3.sif \
+singularity exec \
+    ./images/nanomonsv_postprocess-v0.2.4b.sif \
     bash ./scripts/nanomonsv/nanomonsv_postprocess.sh \
         ${SAMPLE} \
         ${OUTPUT_DIR} \
-        ${SIMPLE_REPEAT} \
-        ${BAM_FILE} \
+        ${BAM_FILE} 
 

@@ -17,6 +17,7 @@ mkdir -p ${WORK_DIR}
 mkdir -p ${OUTPUT_DIR}
 
 cat ${ASSEMBLY_HAP1} ${ASSEMBLY_HAP2} > ${WORK_DIR}/reference.fa
+samtools faidx ${WORK_DIR}/reference.fa
 
 methylation_utils modbam-utils \
     -i ${INPUT_BAM} \

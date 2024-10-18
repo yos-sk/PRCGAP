@@ -11,7 +11,11 @@ WORK_DIR=$5
 OUTPUT_DIR=$6
 DATA=$7
 
-singularity exec ./images/bam_refiner_v0.3.3.sif \
+FASTQ_DIR=`dirname ${FASTQ}`
+
+singularity exec \
+    --bind ${FASTQ_DIR} \
+    ./images/bam_refiner_v0.3.3.sif \
     /bin/bash \
     ./scripts/bam_refiner/bam_refiner.sh \
     $SAMPLE \
