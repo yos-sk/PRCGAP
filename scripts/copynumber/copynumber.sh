@@ -18,6 +18,7 @@ DNANN_MODEL=${10}
 SEX=${11}
 
 mkdir -p ${WORK_DIR}
+mkdir -p ${OUTPUT_DIR}
 if [ ${SEX} = "female" ]; then
     awk '/^>/ {p = ($0 !~ /^>chrY/)} p' ${REFERENCE} > ${WORK_DIR}/reference_noY.fa
     REFERENCE=${WORK_DIR}/reference_noY.fa
@@ -48,7 +49,7 @@ do
     # 3. Make correspondence table between contigs and ref
     python3 /tools/CN_utils/scripts/create_correspo_table.py \
         -i ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.rmsec.paf \
-        > ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table
+    > ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table
 
     # 4. Calculate depth
     awk '{print $1 "\t" $2 "\t" $3}' ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${WORK_DIR}/${NORMAL}.${hap}.ref.bed

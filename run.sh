@@ -3,6 +3,7 @@
 CONF=$1
 source ${CONF}
 
+
 # 1. bam_refiner_hifi
 for SAMPLE in ${TUMOR} ${CONTROL}; do
     if [ ${SAMPLE} = ${TUMOR} ]; then
@@ -16,8 +17,8 @@ for SAMPLE in ${TUMOR} ${CONTROL}; do
         ${ASSEMBLY_HAP1} \
         ${ASSEMBLY_HAP2} \
         ${INPUT_FASTQ} \
-        ${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi/workspace \
-        ${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi/output \
+        ${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi_with_MD/workspace \
+        ${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi_with_MD/output \
         hifi
 done
 
@@ -41,8 +42,8 @@ if [ ${CONTROL_METHYLATION_HIFI} != ${CONTROL_HIFI} ]; then
         ${ASSEMBLY_HAP1} \
         ${ASSEMBLY_HAP2} \
         ${CONTROL_METHYLATION_HIFI} \
-        ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/hifi/workspace \
-        ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/hifi/output \
+        ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/methylation_hifi/workspace \
+        ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/methylation_hifi/output \
         hifi
 fi    
 
@@ -64,9 +65,12 @@ for SAMPLE in ${TUMOR} ${CONTROL}; do
         ont
 done
 
+
 # 4. copynumber
-TUMOR_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_bam_refiner_hifi) | cut -d ' ' -f 2) NORMAL_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_bam_refiner_hifi) | cut -d ' ' -f 2)
-sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${NORMAL_BAM_REFINER_JOBID} -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
+TUMOR_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_bam_refiner_hifi) | cut -d ' ' -f 2) 
+NORMAL_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_bam_refiner_hifi) | cut -d ' ' -f 2)
+#sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${NORMAL_BAM_REFINER_JOBID} -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
+sbatch -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
     scripts/copynumber/run_copynumber.sh \
         ${TUMOR} \
         ${CONTROL} \
@@ -78,6 +82,7 @@ sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${NORMAL_BAM_REFINER_JOBI
         ${OUTPUT_PREFIX}/copynumber/${TUMOR}/workspace \
         ${OUTPUT_PREFIX}/copynumber/${TUMOR}/output \
         ${SEX}
+
 
 # 5. nanomonsv parse hifi
 for SAMPLE in ${TUMOR} ${CONTROL}; do
@@ -111,8 +116,17 @@ sbatch --dependency=afterok:${NANOMONSV_GET_JOBID} -J ${TUMOR}_nanomonsv_postpro
         ${TUMOR} \
         ${OUTPUT_PREFIX}/nanomonsv/hifi \
         ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam
- 
-# 8. nanomonsv parse ont
+
+# 8. nanomonsv connect hifi
+NANOMONSV_POSTPROCESS_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_nanomonsv_postprocess_hifi) | cut -d ' ' -f 2)
+sbatch --dependency=afterok:${NANOMONSV_POSTPROCESS_JOBID} -J ${TUMOR}_nanomonsv_connect_hifi -e ./log/${TUMOR}_nanomonsv_connect_hifi.err -o ./log/${TUMOR}_nanomonsv_connect_hifi.out \
+#sbatch -J ${TUMOR}_nanomonsv_connect_hifi -e ./log/${TUMOR}_nanomonsv_connect_hifi.err -o ./log/${TUMOR}_nanomonsv_connect_hifi.out \
+    scripts/nanomonsv/run_nanomonsv_connect.sh \
+        ${OUTPUT_PREFIX}/nanomonsv/hifi/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
+        ${OUTPUT_PREFIX}/nanomonsv/hifi/${TUMOR}.nanomonsv.supporting_read.txt \
+        ${OUTPUT_PREFIX}/nanomonsv/hifi/${TUMOR} 
+
+# 9. nanomonsv parse ont
 for SAMPLE in ${TUMOR} ${CONTROL}; do
     BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${SAMPLE}_bam_refiner_ont) | cut -d ' ' -f 2)
     sbatch --dependency=afterok:${BAM_REFINER_JOBID} -J ${SAMPLE}_nanomonsv_parse_ont -e log/${SAMPLE}_nanomonsv_parse_ont.err -o log/${SAMPLE}_nanomonsv_parse_ont.out \
@@ -122,7 +136,7 @@ for SAMPLE in ${TUMOR} ${CONTROL}; do
             ${OUTPUT_PREFIX}/nanomonsv/ont
 done
 
-# 9. nanomonsv get ont
+# 10. nanomonsv get ont
 TUMOR_NANOMONSV_PARSE_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_nanomonsv_parse_ont) | cut -d ' ' -f 2)
 CONTROL_NANOMONSV_PARSE_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_nanomonsv_parse_ont) | cut -d ' ' -f 2)
 sbatch --dependency=afterok:${TUMOR_NANOMONSV_PARSE_JOBID},${CONTROL_NANOMONSV_PARSE_JOBID} -J ${TUMOR}_nanomonsv_get_ont -e log/${TUMOR}_nanomonsv_get_ont.err -o log/${TUMOR}_nanomonsv_get_ont.out \
@@ -137,7 +151,7 @@ sbatch --dependency=afterok:${TUMOR_NANOMONSV_PARSE_JOBID},${CONTROL_NANOMONSV_P
         ont \
         ${SIMPLE_REPEAT} 
 
-# 10. nanomonsv postprocess ont
+# 11. nanomonsv postprocess ont
 NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_nanomonsv_get_ont) | cut -d ' ' -f 2)
 sbatch --dependency=afterok:${NANOMONSV_GET_JOBID} -J ${TUMOR}_nanomonsv_postprocess_ont -e ./log/${TUMOR}_nanomonsv_postprocess_ont.err -o ./log/${TUMOR}_nanomonsv_postprocess_ont.out \
     scripts/nanomonsv/run_nanomonsv_postprocess.sh \
@@ -145,7 +159,16 @@ sbatch --dependency=afterok:${NANOMONSV_GET_JOBID} -J ${TUMOR}_nanomonsv_postpro
         ${OUTPUT_PREFIX}/nanomonsv/ont \
         ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/ont/output/${TUMOR}_bam_refined.sorted.bam
 
-# 11. merge nanomonsv results
+# 12. nanomonsv connect ont
+NANOMONSV_POSTPROCESS_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_nanomonsv_postprocess_ont) | cut -d ' ' -f 2)
+sbatch --dependency=afterok:${NANOMONSV_POSTPROCESS_JOBID} -J ${TUMOR}_nanomonsv_connect_ont -e ./log/${TUMOR}_nanomonsv_connect_ont.err -o ./log/${TUMOR}_nanomonsv_connect_ont.out \
+#sbatch -J ${TUMOR}_nanomonsv_connect_ont -e ./log/${TUMOR}_nanomonsv_connect_ont.err -o ./log/${TUMOR}_nanomonsv_connect_ont.out \
+    scripts/nanomonsv/run_nanomonsv_connect.sh \
+        ${OUTPUT_PREFIX}/nanomonsv/ont/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
+        ${OUTPUT_PREFIX}/nanomonsv/ont/${TUMOR}.nanomonsv.supporting_read.txt \
+        ${OUTPUT_PREFIX}/nanomonsv/ont/${TUMOR} 
+
+# 13. merge nanomonsv results
 NANOMONSV_POSTPROCESS_HIFI_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_nanomonsv_postprocess_hifi) | cut -d ' ' -f 2)
 NANOMONSV_POSTPROCESS_ONT_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_nanomonsv_postprocess_ont) | cut -d ' ' -f 2)
 sbatch --dependency=afterok:${NANOMONSV_POSTPROCESS_HIFI_JOBID},${NANOMONSV_POSTPROCESS_ONT_JOBID} -J ${TUMOR}_nanomonsv_merge -e log/${TUMOR}_nanomonsv_merge_ont.err -o log/${TUMOR}_nanomonsv_merge_ont.out \
@@ -155,7 +178,7 @@ sbatch --dependency=afterok:${NANOMONSV_POSTPROCESS_HIFI_JOBID},${NANOMONSV_POST
         ${OUTPUT_PREFIX}/nanomonsv/${TUMOR}.nanomonsv.result.merged.txt \
 
 
-# 12. clairs
+# 14. clairs
 TUMOR_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_bam_refiner_hifi) | cut -d ' ' -f 2)
 CONTROL_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_bam_refiner_hifi) | cut -d ' ' -f 2)
 sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${CONTROL_BAM_REFINER_JOBID} -J ${TUMOR}_clairs -e ./log/${TUMOR}_clairs.err -o ./log/${TUMOR}_clairs.out \
@@ -166,9 +189,9 @@ sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${CONTROL_BAM_REFINER_JOB
         ${ASSEMBLY_HAP2} \
         ${OUTPUT_PREFIX}/clairs/${TUMOR}
 
-<<_
-# TODO: filter.pyをかく
-# 13. clairs postprocess
+
+# TODO: write filter.py
+# 15. clairs postprocess
 CLAIRS_JOB_ID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_clairs) | cut -d ' ' -f 2)
 #sbatch --dependency=afterok:${CLAIRS_JOB_ID} -J ${TUMOR}_clairs_postprocess -e ./log/${TUMOR}_clairs_postprocess.err -o ./log/${TUMOR}_clairs_postprocess.out \
 sbatch -J ${TUMOR}_clairs_postprocess -e ./log/${TUMOR}_clairs_postprocess.err -o ./log/${TUMOR}_clairs_postprocess.out \
@@ -178,9 +201,9 @@ sbatch -J ${TUMOR}_clairs_postprocess -e ./log/${TUMOR}_clairs_postprocess.err -
         ${ASSEMBLY_HAP2} \
         ${OUTPUT_PREFIX}/clairs/${TUMOR}/postprocess/workspace \
         ${OUTPUT_PREFIX}/clairs/${TUMOR}/postprocess/ouptut 
-_
 
-# 14. methylation:
+
+# 16. methylation:
 for SAMPLE in ${TUMOR} ${CONTROL}; do
     if [ ${SAMPLE} = ${TUMOR} ]; then
         INPUT_MODBAM_HIFI=${TUMOR_MODBAM_HIFI}
@@ -192,13 +215,14 @@ for SAMPLE in ${TUMOR} ${CONTROL}; do
 
     if [ ${TUMOR_HIFI} != ${TUMOR_METHYLATION_HIFI} ]; then
         BAM_REFINER_HIFI_JOBID=$(echo $(squeue -noheader --format %i --name ${SAMPLE}_bam_refiner_hifi) | cut -d ' ' -f 2)
-        INPUT_BAM=${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi/output/${SAMPLE}_bam_refined.sorted.bam
+        INPUT_BAM=${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/methylation_hifi/output/${SAMPLE}_bam_refined.sorted.bam
     else
         BAM_REFINER_HIFI_JOBID=$(echo $(squeue -noheader --format %i --name ${SAMPLE}_bam_refiner_methylation_hifi) | cut -d ' ' -f 2)
-        INPUT_BAM=${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/methylation_hifi/output/${SAMPLE}_bam_refined.sorted.bam
+        INPUT_BAM=${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi/output/${SAMPLE}_bam_refined.sorted.bam
     fi
 
     sbatch --dependency=afterok:${BAM_REFINER_HIFI_JOBID} -J ${SAMPLE}_methylation_hifi -e log/${SAMPLE}_methylation_hifi.err -o log/${SAMPLE}_methylation_hifi.out \
+    #sbatch -J ${SAMPLE}_methylation_hifi -e log/${SAMPLE}_methylation_hifi.err -o log/${SAMPLE}_methylation_hifi.out \
         scripts/methylation/run_methylation.sh \
             ${SAMPLE} \
             ${INPUT_BAM} \
@@ -219,3 +243,4 @@ for SAMPLE in ${TUMOR} ${CONTROL}; do
             ${ASSEMBLY_HAP1} \
             ${ASSEMBLY_HAP2}
 done
+

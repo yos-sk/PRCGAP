@@ -42,12 +42,12 @@ mutation_postprocess group \
 
 python3 /tools/mutation_postprocess/scripts/remove_duplicates.py \
     ${WORK_DIR}/output.coordconv_chm13_pass.bed \
-    ${WORK_DIR}/group_info.txt > ${OUTPUT_DIR}/output.coordconv_chm13_rmdup.bed
+    ${WORK_DIR}/group_info.txt > ${OUTPUT_DIR}/output.coordconv_rmdup.bed
     
-python3 /tools/mutation_postprocess/scripts/filter.py \
-    ${OUTPUT_DIR}/output.coordconv_chm13_rmdup.bed \
-    ${CLAIRS_RESULTS} \
-> ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf
+#python3 /tools/mutation_postprocess/scripts/filter.py \
+#    ${OUTPUT_DIR}/output.coordconv_chm13_rmdup.bed \
+#    ${CLAIRS_RESULTS} \
+#> ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf
 
-bgzip -f ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf > ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf.gz
-tabix -p vcf ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf.gz
+#bgzip -f ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf > ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf.gz
+#tabix -p vcf ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf.gz

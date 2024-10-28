@@ -23,9 +23,9 @@ OUTPUT_BAM_PREFIX=${WORK_DIR}/${SAMPLE}
 
 cat ${hap1_contig} ${hap2_contig} > ${WORK_DIR}/reference.fa
 if [ ${DATA} == "hifi" ]; then
-    minimap2 -t ${THREAD} -ax asm5 ${WORK_DIR}/reference.fa ${FASTQ} | samtools view -Shb > ${OUTPUT_BAM_PREFIX}.unsorted
+    minimap2 -t ${THREAD} -ax asm5 --MD ${WORK_DIR}/reference.fa ${FASTQ} | samtools view -Shb > ${OUTPUT_BAM_PREFIX}.unsorted
 else
-    minimap2 -t ${THREAD} -ax asm10 ${WORK_DIR}/reference.fa ${FASTQ} | samtools view -Shb > ${OUTPUT_BAM_PREFIX}.unsorted
+    minimap2 -t ${THREAD} -ax asm10 --MD ${WORK_DIR}/reference.fa ${FASTQ} | samtools view -Shb > ${OUTPUT_BAM_PREFIX}.unsorted
 fi
 samtools sort -@ ${THREAD} -m 2G -n ${OUTPUT_BAM_PREFIX}.unsorted -o ${OUTPUT_BAM_PREFIX}.bam
 rm ${OUTPUT_BAM_PREFIX}.unsorted

@@ -18,7 +18,7 @@ SIMPLE_REPEAT=$9
 TUMOR_PREFIX=${OUTPUT_DIR}/${TUMOR}
 NORMAL_PREFIX=${OUTPUT_DIR}/${NORMAL}
 
-<<_
+
 cat ${ASSEMBLY_HAP1} ${ASSEMBLY_HAP2} > ${OUTPUT_DIR}/reference.fa
 
 if [ $DATA = "hifi" ];then
@@ -46,7 +46,7 @@ else
         --max_memory_minimap2 16 \
         --qv15
 fi
-_
+
 python3 /nanomonsv/misc/add_simple_repeat.py \
     ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.txt \
     ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.filt.txt \

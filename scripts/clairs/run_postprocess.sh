@@ -8,6 +8,7 @@ ASSEMBLY_HAP1=$2
 ASSEMBLY_HAP2=$3
 WORK_DIR=$4
 OUTPUT_DIR=$5
+CHAIN_FILE=$6
 
 ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
 
@@ -19,5 +20,6 @@ singularity exec \
         ${ASSEMBLY_HAP1} \
         ${ASSEMBLY_HAP2} \
         ${WORK_DIR} \
-        ${OUTPUT_DIR} 
+        ${OUTPUT_DIR} \
+        ${CHAIN_FILE}
 
