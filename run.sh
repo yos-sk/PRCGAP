@@ -69,8 +69,8 @@ done
 # 4. copynumber
 TUMOR_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_bam_refiner_hifi) | cut -d ' ' -f 2) 
 NORMAL_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_bam_refiner_hifi) | cut -d ' ' -f 2)
-#sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${NORMAL_BAM_REFINER_JOBID} -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
-sbatch -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
+sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${NORMAL_BAM_REFINER_JOBID} -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
+$sbatch -J ${TUMOR}_copynumber -e log/${TUMOR}_copynumber.err -o log/${TUMOR}_copynumber.out \
     scripts/copynumber/run_copynumber.sh \
         ${TUMOR} \
         ${CONTROL} \
@@ -193,8 +193,8 @@ sbatch --dependency=afterok:${TUMOR_BAM_REFINER_JOBID},${CONTROL_BAM_REFINER_JOB
 # TODO: write filter.py
 # 15. clairs postprocess
 CLAIRS_JOB_ID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_clairs) | cut -d ' ' -f 2)
-#sbatch --dependency=afterok:${CLAIRS_JOB_ID} -J ${TUMOR}_clairs_postprocess -e ./log/${TUMOR}_clairs_postprocess.err -o ./log/${TUMOR}_clairs_postprocess.out \
-sbatch -J ${TUMOR}_clairs_postprocess -e ./log/${TUMOR}_clairs_postprocess.err -o ./log/${TUMOR}_clairs_postprocess.out \
+sbatch --dependency=afterok:${CLAIRS_JOB_ID} -J ${TUMOR}_clairs_postprocess -e ./log/${TUMOR}_clairs_postprocess.err -o ./log/${TUMOR}_clairs_postprocess.out \
+#sbatch -J ${TUMOR}_clairs_postprocess -e ./log/${TUMOR}_clairs_postprocess.err -o ./log/${TUMOR}_clairs_postprocess.out \
     scripts/clairs/run_postprocess.sh \
         ${OUTPUT_PREFIX}/clairs/${TUMOR}/output.vcf.gz \
         ${ASSEMBLY_HAP1} \

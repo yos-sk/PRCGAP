@@ -53,8 +53,8 @@ do
 
     # 4. Calculate depth
     awk '{print $1 "\t" $2 "\t" $3}' ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${WORK_DIR}/${NORMAL}.${hap}.ref.bed
-    samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${tumor_bamfile} -Q 40 > ${WORK_DIR}/${TUMOR}.${hap}.depth
-    samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${normal_bamfile} -Q 40 > ${WORK_DIR}/${NORMAL}.${hap}.depth
+    samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${TUMOR_BAM} -Q 40 > ${WORK_DIR}/${TUMOR}.${hap}.depth
+    samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${NORMAL_BAM} -Q 40 > ${WORK_DIR}/${NORMAL}.${hap}.depth
     gzip -f ${WORK_DIR}/${TUMOR}.${hap}.depth
     gzip -f ${WORK_DIR}/${NORMAL}.${hap}.depth
     CN_utils copynumber \
