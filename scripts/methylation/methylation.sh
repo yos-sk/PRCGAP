@@ -37,3 +37,5 @@ modkit pileup \
     ${OUTPUT_DIR}/${SAMPLE}_methylation.bed
 
 gzip -f ${OUTPUT_DIR}/${SAMPLE}_methylation.bed
+
+echo ${?}
