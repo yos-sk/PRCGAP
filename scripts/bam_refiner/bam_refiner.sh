@@ -1,5 +1,10 @@
 #!/bin/bash
 
+set -xv
+set -o errexit
+set -o nounset
+set -o pipefail
+
 SAMPLE=$1
 hap1_contig=$2
 hap2_contig=$3
@@ -9,13 +14,6 @@ WORK_DIR=$6
 OUTPUT_DIR=$7
 THREAD=$8
 DATA=$9
-
-set -xv
-set -o errexit
-set -o nounset
-set -o pipefail
-
-
 
 # Step1: Mapping
 mkdir -p ${WORK_DIR} 

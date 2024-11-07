@@ -9,7 +9,7 @@ ASSEMBLY_HAP1=$2
 ASSEMBLY_HAP2=$3
 WORK_DIR=$4
 OUTPUT_DIR=$5
-CHAINFILE=$6
+CHAIN_FILE=$6
 
 mkdir -p ${WORK_DIR}
 mkdir -p ${OUTPUT_DIR}
@@ -21,7 +21,7 @@ python3 /tools/mutation_postprocess/scripts/parse_vcf.py \
 
 coordconv \
     -b ${WORK_DIR}/output.parsed.bed \
-    -c ${CHAINFILE} \
+    -c ${CHAIN_FILE} \
 > ${WORK_DIR}/output.coordconv_chm13.bed
 
 awk '{if ($9 == "PASS") print}' ${WORK_DIR}/output.coordconv_chm13.bed > ${WORK_DIR}/output.coordconv_chm13_pass.bed
@@ -51,3 +51,5 @@ python3 /tools/mutation_postprocess/scripts/remove_duplicates.py \
 
 #bgzip -f ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf > ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf.gz
 #tabix -p vcf ${OUTPUT_DIR}/${CLAIRS_RESULTS%.vcf.gz}.filtered.vcf.gz
+
+echo ${?}
