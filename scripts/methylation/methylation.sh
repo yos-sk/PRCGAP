@@ -12,12 +12,14 @@ WORK_DIR=$4
 OUTPUT_DIR=$5
 ASSEMBLY_HAP1=$6
 ASSEMBLY_HAP2=$7
+MODE=$8
 
 mkdir -p ${WORK_DIR}
 mkdir -p ${OUTPUT_DIR}
 
 cat ${ASSEMBLY_HAP1} ${ASSEMBLY_HAP2} > ${WORK_DIR}/reference.fa
 samtools faidx ${WORK_DIR}/reference.fa
+
 
 methylation_utils modbam-utils \
     -i ${INPUT_BAM} \
@@ -28,13 +30,34 @@ methylation_utils modbam-utils \
 
 samtools index ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged.bam
 
-modkit pileup \
-    --cpg \
-    -t 16 \
-    --ref ${WORK_DIR}/reference.fa \
-    --with-header \
-    ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged.bam \
-    ${OUTPUT_DIR}/${SAMPLE}_methylation.bed
+
+if [ ${MODE} = "HiFi" ]; then
+    modkit update-tags \
+        -m implicit \
+        -t 16 \
+        ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged.bam \
+        ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged_update.bam
+
+    samtools index ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged_update.bam
+    rm ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged.bam
+    rm ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged.bam.bai
+
+    modkit pileup \
+        --cpg \
+        -t 16 \
+        --ref ${WORK_DIR}/reference.fa \
+        --with-header \
+        ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged_update.bam \
+        ${OUTPUT_DIR}/${SAMPLE}_methylation.bed
+else
+    modkit pileup \
+        --cpg \
+        -t 16 \
+        --ref ${WORK_DIR}/reference.fa \
+        --with-header \
+        ${OUTPUT_DIR}/${SAMPLE}_methylation_tagged.bam \
+        ${OUTPUT_DIR}/${SAMPLE}_methylation.bed
+fi
 
 gzip -f ${OUTPUT_DIR}/${SAMPLE}_methylation.bed
 

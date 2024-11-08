@@ -10,6 +10,7 @@ WORK_DIR=$4
 OUTPUT_DIR=$5
 ASSEMBLY_HAP1=$6
 ASSEMBLY_HAP2=$7
+MODE=$8
 
 INPUT_MODBAM_DIR=`dirname ${INPUT_MODBAM}`
 ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
@@ -24,4 +25,5 @@ singularity exec \
         ${WORK_DIR} \
         ${OUTPUT_DIR} \
         ${ASSEMBLY_HAP1} \
-        ${ASSEMBLY_HAP2}
+        ${ASSEMBLY_HAP2} \
+        ${MODE}

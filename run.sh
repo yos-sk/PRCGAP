@@ -233,7 +233,8 @@ for SAMPLE in ${TUMOR} ${CONTROL}; do
             ${OUTPUT_PREFIX}/methylation/${SAMPLE}/hifi/workspace \
             ${OUTPUT_PREFIX}/methylation/${SAMPLE}/hifi/output \
             ${ASSEMBLY_HAP1} \
-            ${ASSEMBLY_HAP2}
+            ${ASSEMBLY_HAP2} \
+            HiFi
 
     BAM_REFINER_ONT_JOBID=$(echo $(squeue -noheader --format %i --name ${SAMPLE}_bam_refiner_ont) | cut -d ' ' -f 2)
     sbatch --dependency=afterok:${BAM_REFINER_ONT_JOBID} -J ${SAMPLE}_methylation_ont -e log/${SAMPLE}_methylation_ont.err -o log/${SAMPLE}_methylation_ont.out \
@@ -244,6 +245,7 @@ for SAMPLE in ${TUMOR} ${CONTROL}; do
             ${OUTPUT_PREFIX}/methylation/${SAMPLE}/ont/workspace \
             ${OUTPUT_PREFIX}/methylation/${SAMPLE}/ont/output \
             ${ASSEMBLY_HAP1} \
-            ${ASSEMBLY_HAP2}
+            ${ASSEMBLY_HAP2} \
+            ONT
 done
 
