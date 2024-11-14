@@ -8,16 +8,18 @@ CONTROL_BAM=$2
 ASSEMBLY_HAP1=$3
 ASSEMBLY_HAP2=$4
 OUTPUT_DIR=$5
+KMER_RATIO=$6
 
 ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
 
 singularity exec \
     --bind ${ASSEMBLY_DIR}/ \
-    ./images/clairs-latest.sif \
+    ./images/clairs-v0.4.0.sif \
     bash ./scripts/clairs/clairs.sh \
         ${TUMOR_BAM} \
         ${CONTROL_BAM} \
         ${OUTPUT_DIR} \
         ${ASSEMBLY_HAP1} \
-        ${ASSEMBLY_HAP2}
+        ${ASSEMBLY_HAP2} \
+        ${KMER_RATIO}
 
