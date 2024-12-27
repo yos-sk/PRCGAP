@@ -8,7 +8,7 @@ OUTPUT_DIR=$2
 BAM_FILE=$3
 
 singularity exec \
-    ./images/nanomonsv_postprocess-v0.2.4b.sif \
+    ./images/nanomonsv_postprocess-v0.2.5.sif \
     bash ./scripts/nanomonsv/nanomonsv_postprocess.sh \
         ${SAMPLE} \
         ${OUTPUT_DIR} \

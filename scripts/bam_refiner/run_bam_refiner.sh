@@ -14,7 +14,7 @@ DATA=$7
 FASTQ_DIR=`dirname ${FASTQ}`
 
 singularity exec \
-    --bind ${FASTQ_DIR} \
+    --bind /lustre1/,${FASTQ_DIR} \
     ./images/bam_refiner_v0.3.3.sif \
     /bin/bash \
     ./scripts/bam_refiner/bam_refiner.sh \
