@@ -14,8 +14,9 @@ NORMAL_BAM=$6
 REFERENCE=$7
 WORK_DIR=$8
 OUTPUT_DIR=$9
-DNANN_MODEL=${10}
-SEX=${11}
+HAP1_SATELLITE=${10}
+HAP2_SATELLITE=${11}
+SEX=${12}
 
 mkdir -p ${WORK_DIR}
 mkdir -p ${OUTPUT_DIR}
@@ -28,39 +29,46 @@ for hap in hap1 hap2
 do
     if [ $hap = "hap1" ]; then
         INPUT_FASTA=${ASSEMBLY_HAP1}
+        SATELLITE=${HAP1_SATELLITE}
     else
         INPUT_FASTA=${ASSEMBLY_HAP2}
+        SATELLITE=${HAP2_SATELLITE}
     fi
         
-    # 1. Mask alpha satelite in contigs
-    dna-brnn \
-        -Ai ${DNANN_MODEL} \
-        -t16 ${INPUT_FASTA} > ${WORK_DIR}/${NORMAL}.${hap}_dna-brnn.bed
-    gzip -f ${WORK_DIR}/${NORMAL}.${hap}_dna-brnn.bed
-    CN_utils mask \
-        -i ${INPUT_FASTA} \
-        -b ${WORK_DIR}/${NORMAL}.${hap}_dna-brnn.bed.gz \
-        > ${WORK_DIR}/${NORMAL}.${hap}.masked.fa
+    # 1. Mask alpha satellite in contigs
+    #dna-brnn \
+    #    -Ai ${DNANN_MODEL} \
+    #    -t16 ${INPUT_FASTA} > ${WORK_DIR}/${NORMAL}.${hap}_dna-brnn.bed
+    #gzip -f ${WORK_DIR}/${NORMAL}.${hap}_dna-brnn.bed
+
+    singularity exec ~/sandbox/bedtools/bedtools_v2.31.0.sif \
+    bedtools maskfasta \
+        -fi ${INPUT_FASTA} \
+        -bed ${SATELLITE} \
+        -fo ${WORK_DIR}/${NORMAL}.${hap}.masked.fa
 
     # 2. Align ref to contigs
-    minimap2 -cx asm5 -t 16 ${WORK_DIR}/${NORMAL}.${hap}.masked.fa ${REFERENCE} > ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.paf
+    ~/bin/minimap2/2.28/minimap2-2.28_x64-linux/minimap2 -cx asm5 -t 16 ${WORK_DIR}/${NORMAL}.${hap}.masked.fa ${REFERENCE} > ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.paf
     grep -v 'tp:A:S' ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.paf > ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.rmsec.paf
 
     # 3. Make correspondence table between contigs and ref
-    python3 /tools/CN_utils/scripts/create_correspo_table.py \
+    python3 ./scripts/copynumber/make_reference_table.py \
         -i ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.rmsec.paf \
     > ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table
 
     # 4. Calculate depth
     awk '{print $1 "\t" $2 "\t" $3}' ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${WORK_DIR}/${NORMAL}.${hap}.ref.bed
-    samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${TUMOR_BAM} -Q 40 > ${WORK_DIR}/${TUMOR}.${hap}.depth
-    samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${NORMAL_BAM} -Q 40 > ${WORK_DIR}/${NORMAL}.${hap}.depth
-    gzip -f ${WORK_DIR}/${TUMOR}.${hap}.depth
-    gzip -f ${WORK_DIR}/${NORMAL}.${hap}.depth
-    CN_utils copynumber \
-        -t ${WORK_DIR}/${TUMOR}.${hap}.depth.gz \
-        -c ${WORK_DIR}/${NORMAL}.${hap}.depth.gz \
-        -i ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv
+    ~/bin/samtools/samtools-1.17/samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${TUMOR_BAM} -Q 40 | awk '{print $1 "\t" $2 - 1 "\t" $2 "\t" $3}' >  ${WORK_DIR}/${TUMOR}.${hap}.depth.bed
+    ~/bin/samtools/samtools-1.17/samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${NORMAL_BAM} -Q 40 | awk '{print $1 "\t" $2 - 1 "\t" $2 "\t" $3}' >  ${WORK_DIR}/${NORMAL}.${hap}.depth.bed
+    ~/bin/samtools/samtools-1.17/htslib-1.17/bgzip -f -@ 16  ${WORK_DIR}/${TUMOR}.${hap}.depth.bed
+    ~/bin/samtools/samtools-1.17/htslib-1.17/tabix -p bed ${WORK_DIR}/${TUMOR}.${hap}.depth.bed.gz
+    ~/bin/samtools/samtools-1.17/htslib-1.17/bgzip -f -@ 16  ${WORK_DIR}/${NORMAL}.${hap}.depth.bed
+    ~/bin/samtools/samtools-1.17/htslib-1.17/tabix -p bed ${WORK_DIR}/${NORMAL}.${hap}.depth.bed.gz
+    singularity exec ~/sandbox/nanomonsv/nanomonsv-v0.7.2.sif \
+    python3 ./scripts/copynumber/copynumber_window.py \
+        -t ${WORK_DIR}/${TUMOR}.${hap}.depth.bed.gz \
+        -n ${WORK_DIR}/${NORMAL}.${hap}.depth.bed.gz \
+        -r ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv
 done
 
 echo ${?}

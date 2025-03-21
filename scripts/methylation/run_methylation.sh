@@ -5,25 +5,23 @@
 
 SAMPLE=$1
 INPUT_BAM=$2
-INPUT_MODBAM=$3
-WORK_DIR=$4
-OUTPUT_DIR=$5
-ASSEMBLY_HAP1=$6
-ASSEMBLY_HAP2=$7
-MODE=$8
+WORK_DIR=$3
+OUTPUT_DIR=$4
+ASSEMBLY_HAP1=$5
+ASSEMBLY_HAP2=$6
+TYPE=$7
 
 INPUT_MODBAM_DIR=`dirname ${INPUT_MODBAM}`
 ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
 
 singularity exec \
     --bind /lustre1/,${INPUT_MODBAM_DIR}/,${ASSEMBLY_DIR}/ \
-    ./images/methylation_utils-v0.1.1.sif \
+    ./images/methylation_utils-v0.1.2.sif \
     bash ./scripts/methylation/methylation.sh \
         ${SAMPLE} \
         ${INPUT_BAM} \
-        ${INPUT_MODBAM} \
         ${WORK_DIR} \
         ${OUTPUT_DIR} \
         ${ASSEMBLY_HAP1} \
         ${ASSEMBLY_HAP2} \
-        ${MODE}
+        ${TYPE}
