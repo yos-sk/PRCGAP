@@ -288,7 +288,49 @@ if [ ${NANOMONSV_POST} = "TRUE" ]; then
     fi
 fi
 
-# 7. nanomonsv connect
+# 7. nanomonsv insert_classify
+if [ ${NANOMONSV_INSERT_CLASSIFY} = "TRUE" ]; then
+    if [ ${NANOMONSV_GET} = "TRUE" ]; then
+        TUMOR_NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_get_hifi) | cut -d ' ' -f 2)
+        CONTROL_NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_${ASSEMBLER}_nanomonsv_get_hifi) | cut -d ' ' -f 2)
+        sbatch --dependency=afterok:${TUMOR_NANOMONSV_GET_JOBID},${CONTROL_NANOMONSV_GET_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log \
+            scripts/nanomonsv/run_nanomonsv_insert_classify.sh \
+                ${OUTPUT_PREFIX}/nanomonsv/hifi/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
+                ${OUTPUT_PREFIX}/nanomonsv/hifi \
+                ${TUMOR}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+                ${GTF_FILE} \
+                ${LINE1_BED} 
+
+        TUMOR_NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_get_ont) | cut -d ' ' -f 2)
+        CONTROL_NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_${ASSEMBLER}_nanomonsv_get_ont) | cut -d ' ' -f 2)
+        sbatch --dependency=afterok:${TUMOR_NANOMONSV_GET_JOBID},${CONTROL_NANOMONSV_GET_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log \
+            scripts/nanomonsv/run_nanomonsv_insert_classify.sh \
+                ${OUTPUT_PREFIX}/nanomonsv/ont/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
+                ${OUTPUT_PREFIX}/nanomonsv/ont \
+                ${TUMOR}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+                ${GTF_FILE} \
+                ${LINE1_BED} 
+    else
+        sbatch -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log \
+            scripts/nanomonsv/run_nanomonsv_insert_classify.sh \
+                ${OUTPUT_PREFIX}/nanomonsv/hifi/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
+                ${OUTPUT_PREFIX}/nanomonsv/hifi \
+                ${TUMOR}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+                ${GTF_FILE} \
+                ${LINE1_BED} 
+
+        sbatch -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log \
+            scripts/nanomonsv/run_nanomonsv_insert_classify.sh \
+                ${OUTPUT_PREFIX}/nanomonsv/ont/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
+                ${OUTPUT_PREFIX}/nanomonsv/ont \
+                ${TUMOR}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+                ${GTF_FILE} \
+                ${LINE1_BED} 
+    fi
+fi
+
+
+# 8. nanomonsv connect
 if [ ${NANOMONSV_CONNECT} = "TRUE" ]; then
     if [ ${NANOMONSV_POST} = "TRUE" ]; then
         NANOMONSV_POSTPROCESS_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_postprocess_hifi) | cut -d ' ' -f 2)
@@ -319,7 +361,7 @@ if [ ${NANOMONSV_CONNECT} = "TRUE" ]; then
     fi
 fi
 
-# 8. merge nanomonsv results
+# 9. merge nanomonsv results
 if [ ${NANOMONSV_MERGE} = "TRUE" ]; then
     if [ ${NANOMONSV_POST} = "TRUE" ]; then
         NANOMONSV_POSTPROCESS_HIFI_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_postprocess_hifi) | cut -d ' ' -f 2)
@@ -338,7 +380,7 @@ if [ ${NANOMONSV_MERGE} = "TRUE" ]; then
     fi
 fi
 
-# 9. clairs
+# 10. clairs
 if [ ${CLAIRS} = "TRUE" ]; then
     if [ ${BAM_REFINER} = "TRUE" ]; then
         TUMOR_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_bam_refiner_hifi) | cut -d ' ' -f 2)
@@ -361,7 +403,7 @@ if [ ${CLAIRS} = "TRUE" ]; then
     fi
 fi
 
-# 10. deeosomatic
+# 11. deeosomatic
 if [ ${DEEPSOMATIC} = "TRUE" ]; then
     if [ ${BAM_REFINER} = "TRUE" ]; then
         TUMOR_BAM_REFINER_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_bam_refiner_hifi) | cut -d ' ' -f 2)
@@ -388,7 +430,7 @@ if [ ${DEEPSOMATIC} = "TRUE" ]; then
     fi
 fi
 
-# 11. clairs postprocess
+# 12. clairs postprocess
 if [ ${CLAIRS_POST} = "TRUE" ]; then
     if [ ${CLAIRS} = "TRUE" ]; then
         CLAIRS_JOB_ID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_clairs) | cut -d ' ' -f 2)
@@ -415,7 +457,7 @@ if [ ${CLAIRS_POST} = "TRUE" ]; then
     fi
 fi
 
-# 12. deepsomatic postprocess
+# 13. deepsomatic postprocess
 if [ ${DEEPSOMATIC_POST} = "TRUE" ]; then
     if [ ${CLAIRS} = "TRUE" ]; then
         DEEPSOMATIC_JOB_ID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_deepsomatic) | cut -d ' ' -f 2)

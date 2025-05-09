@@ -17,9 +17,6 @@ INPUT_BAM=$6
 TOOL=$7
 IMAGE=$8
 
-#SUBMIT_DIR=$SLURM_SUBMIT_DIR
-#SUBMIT_CMD=$(scontrol show job $SLURM_JOB_ID | awk -F= '/Command=/{print $2}')
-#SCRIPT_RELATIVE_PATH=$(dirname $SUBMIT_CMD)
 
 mkdir -p ${OUTPUT_DIR}/realign
 cat ${HAP1_FASTA} ${HAP2_FASTA} > ${OUTPUT_DIR}/reference.fa

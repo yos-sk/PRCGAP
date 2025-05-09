@@ -11,11 +11,10 @@ ASSEMBLY_HAP1=$5
 ASSEMBLY_HAP2=$6
 TYPE=$7
 
-INPUT_MODBAM_DIR=`dirname ${INPUT_MODBAM}`
 ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
 
 singularity exec \
-    --bind /lustre1/,${INPUT_MODBAM_DIR}/,${ASSEMBLY_DIR}/ \
+    --bind /lustre1/,${ASSEMBLY_DIR}/ \
     ./images/methylation_utils-v0.1.2.sif \
     bash ./scripts/methylation/methylation.sh \
         ${SAMPLE} \

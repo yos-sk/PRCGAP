@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --mem-per-cpu=30G
+#SBATCH --mem-per-cpu=16G
 #SBATCH -c 8
 #SBATCH -p mjobs,rjobs
 
