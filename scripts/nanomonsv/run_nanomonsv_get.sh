@@ -18,7 +18,7 @@ SIMPLE_REPEAT_DIR=`dirname ${SIMPLE_REPEAT}`
 
 singularity exec \
     --bind /lustre1/,${ASSEMBLY_DIR}/,${SIMPLE_REPEAT_DIR}/ \
-    ./images/nanomonsv-devel.sif \
+    ./images/nanomonsv-v0.8.0.sif \
     bash ./scripts/nanomonsv/nanomonsv_get.sh \
         ${TUMOR} \
         ${NORMAL} \
