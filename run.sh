@@ -291,9 +291,8 @@ fi
 # 7. nanomonsv insert_classify
 if [ ${NANOMONSV_INSERT_CLASSIFY} = "TRUE" ]; then
     if [ ${NANOMONSV_GET} = "TRUE" ]; then
-        TUMOR_NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_get_hifi) | cut -d ' ' -f 2)
-        CONTROL_NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_${ASSEMBLER}_nanomonsv_get_hifi) | cut -d ' ' -f 2)
-        sbatch --dependency=afterok:${TUMOR_NANOMONSV_GET_JOBID},${CONTROL_NANOMONSV_GET_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log \
+        NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_get_hifi) | cut -d ' ' -f 2)
+        sbatch --dependency=afterok:${NANOMONSV_GET_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log \
             scripts/nanomonsv/run_nanomonsv_insert_classify.sh \
                 ${OUTPUT_PREFIX}/nanomonsv/hifi/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
                 ${OUTPUT_PREFIX}/nanomonsv/hifi \
@@ -301,9 +300,8 @@ if [ ${NANOMONSV_INSERT_CLASSIFY} = "TRUE" ]; then
                 ${GTF_FILE} \
                 ${LINE1_BED} 
 
-        TUMOR_NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_get_ont) | cut -d ' ' -f 2)
-        CONTROL_NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${CONTROL}_${ASSEMBLER}_nanomonsv_get_ont) | cut -d ' ' -f 2)
-        sbatch --dependency=afterok:${TUMOR_NANOMONSV_GET_JOBID},${CONTROL_NANOMONSV_GET_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log \
+        NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_get_ont) | cut -d ' ' -f 2)
+        sbatch --dependency=afterok:${NANOMONSV_GET_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log \
             scripts/nanomonsv/run_nanomonsv_insert_classify.sh \
                 ${OUTPUT_PREFIX}/nanomonsv/ont/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
                 ${OUTPUT_PREFIX}/nanomonsv/ont \
