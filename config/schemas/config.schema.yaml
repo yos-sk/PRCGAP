@@ -1,0 +1,240 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+description: main configuration schema for the workflow
+properties:
+  samplesheet:
+    type: string
+    description: path to sample-sheet TSV file
+
+  reference:
+    type: string
+    description: path to reference genome
+
+  singularity_images:
+    type: object
+    properties:
+      bam_refiner:
+        type: string
+        description: path to singularity image of bam_refiner
+      methylation:
+        type: string
+        description: path to singularity image of tools for methylation calling
+      nanomonsv:
+        type: string
+        description: path to singularity image of tools for SV calling (parse, get, insert_classify, connect, merge)
+      nanomonsv_postprocess:
+        type: string
+        description: path to singularity image of NanoMonSV postprocessing
+      clairs:
+        type: string
+        description: path to singularity image of ClairS variant caller
+      deepsomatic:
+        type: string
+        description: path to singularity image of DeepSomatic variant caller
+      point_mutation_postprocess:
+        type: string
+        description: path to singularity image of tools for point mutation postprocessing
+
+  resources:
+    type: object
+    description: resource configuration for each tool (threads and mem_mb)
+    additionalProperties:
+      type: object
+      properties:
+        threads:
+          type: number
+          description: number of threads for this tool
+        mem_mb:
+          type: number
+          description: memory per job in MB for this tool
+    properties:
+      bam_refiner:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 64000)
+      methylation:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 8)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      copynumber:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 8)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      nanomonsv_parse:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      nanomonsv_get:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 8)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      nanomonsv_postprocess:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      nanomonsv_insert_classify:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      nanomonsv_connect:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      nanomonsv_merge:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 2)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 8000)
+      clairs:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 64000)
+      deepsomatic:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 64000)
+      clairs_postprocess:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      deepsomatic_postprocess:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+
+  steps:
+    type: object
+    description: enable/disable analysis steps
+    properties:
+      bam_refiner:
+        type: boolean
+        description: perform BAM refinement
+      methylation:
+        type: boolean
+        description: perform methylation calling
+      copynumber:
+        type: boolean
+        description: perform copy number analysis
+      nanomonsv_parse:
+        type: boolean
+        description: parse structural variants with NanoMonSV
+      nanomonsv_get:
+        type: boolean
+        description: extract structural variants with NanoMonSV
+      nanomonsv_postprocess:
+        type: boolean
+        description: post-process structural variants
+      nanomonsv_insert_classify:
+        type: boolean
+        description: classify insertions
+      nanomonsv_connect:
+        type: boolean
+        description: connect structural variants
+      nanomonsv_merge:
+        type: boolean
+        description: merge HiFi and ONT results
+      clairs:
+        type: boolean
+        description: call variants with ClairS
+      deepsomatic:
+        type: boolean
+        description: call somatic variants with DeepSomatic
+      clairs_postprocess:
+        type: boolean
+        description: post-process ClairS results
+      deepsomatic_postprocess:
+        type: boolean
+        description: post-process DeepSomatic results
+
+  hap1_satellite:
+    type: string
+    description: path to satellite regions for haplotype 1
+
+  hap2_satellite:
+    type: string
+    description: path to satellite regions for haplotype 2
+
+  sex:
+    type: string
+    description: sex of the sample (female or male)
+    enum: ["female", "male"]
+
+  simple_repeat:
+    type: string
+    description: path to simple repeat regions file
+
+  gtf_file:
+    type: string
+    description: path to GTF annotation file
+
+  line1_bed:
+    type: string
+    description: path to LINE1 element BED file
+
+required:
+  - samplesheet
+  - reference
+  - singularity_images

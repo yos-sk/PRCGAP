@@ -1,0 +1,143 @@
+# Maiano entrypoint of the workflow.
+# Please follow the best practices:
+# https://snakemake.readthedocs.io/en/stable/snakefiles/best_practices.html,
+# in particular regarding the standardized folder structure mentioned there.
+
+
+# load configuration
+# -----------------------------------------------------
+configfile: "config/config.yaml"
+
+
+
+# load rules
+# -----------------------------------------------------
+include: "rules/commons.smk"
+include: "rules/process.smk"
+
+
+# optional messages, log and error handling
+# -----------------------------------------------------
+onstart:
+    print("\n--- Analysis started ---\n")
+
+
+onsuccess:
+    print("\n--- Workflow finished! ---\n")
+
+
+onerror:
+    print("\n--- An error occurred! ---\n")
+
+
+# target rules
+# -----------------------------------------------------
+def get_all_targets():
+    """Generate list of all target files based on enabled steps"""
+    targets = []
+
+    # BAM Refiner outputs (always needed as base for other steps)
+    if steps["bam_refiner"]:
+        targets.extend(expand(
+            "bam_refiner/{sample}/{seqtype}/{sample}_bam_refined.sorted.bam",
+            sample=samples.index.get_level_values("sample"),
+            seqtype=["hifi", "ont"]
+        ))
+
+    # Methylation outputs
+    if steps["methylation"]:
+        targets.extend(expand(
+            "methylation/{sample}/{seqtype}/output",
+            sample=samples.index.get_level_values("sample"),
+            seqtype=["hifi", "ont"]
+        ))
+
+    # Copy Number outputs
+    if steps["copynumber"]:
+        targets.extend(expand(
+            "copynumber/{tumor}/output",
+            tumor=tumors
+        ))
+
+    # NanomonSV Parse outputs
+    if steps["nanomonsv_parse"]:
+        targets.extend(expand(
+            "nanomonsv/{seqtype}/{sample}.rearrangement.sorted.bedpe.gz",
+            sample=samples.index.get_level_values("sample"),
+            seqtype=["hifi", "ont"]
+        ))
+
+    # NanomonSV Get outputs
+    if steps["nanomonsv_get"]:
+        targets.extend(expand(
+            "nanomonsv/{seqtype}/{tumor}.nanomonsv.result.txt",
+            tumor=tumors,
+            seqtype=["hifi", "ont"]
+        ))
+
+    # NanomonSV Postprocess outputs
+    if steps["nanomonsv_postprocess"]:
+        targets.extend(expand(
+            "nanomonsv/{seqtype}/{tumor}.nanomonsv.new_result.sv_typed.txt",
+            tumor=tumors,
+            seqtype=["hifi", "ont"]
+        ))
+
+    # NanomonSV Insert Classify outputs
+    if steps["nanomonsv_insert_classify"]:
+        targets.extend(expand(
+            "nanomonsv/{seqtype}/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt",
+            tumor=tumors,
+            seqtype=["hifi", "ont"]
+        ))
+
+    # NanomonSV Connect outputs
+    if steps["nanomonsv_connect"]:
+        targets.extend(expand(
+            "nanomonsv/{seqtype}/{tumor}.nanomonsv.new_result.sv_typed.connected.txt",
+            tumor=tumors,
+            seqtype=["hifi", "ont"]
+        ))
+
+    # NanomonSV Merge outputs
+    if steps["nanomonsv_merge"]:
+        targets.extend(expand(
+            "nanomonsv/{tumor}.nanomonsv.result.merged.txt",
+            tumor=tumors
+        ))
+
+    # ClairS outputs
+    if steps["clairs"]:
+        targets.extend(expand(
+            "clairs/{tumor}",
+            tumor=tumors
+        ))
+
+    # DeepSomatic outputs
+    if steps["deepsomatic"]:
+        targets.extend(expand(
+            "deepsomatic/{tumor}",
+            tumor=tumors
+        ))
+
+    # ClairS Postprocess outputs
+    if steps["clairs_postprocess"]:
+        targets.extend(expand(
+            "clairs_post/{tumor}/{tumor}.haplotyped.bed",
+            tumor=tumors
+        ))
+
+    # DeepSomatic Postprocess outputs
+    if steps["deepsomatic_postprocess"]:
+        targets.extend(expand(
+            "deepsomatic_post/{tumor}/{tumor}.haplotyped.bed",
+            tumor=tumors
+        ))
+
+    return targets
+
+
+rule all:
+    input:
+        get_all_targets()
+    default_target: True
