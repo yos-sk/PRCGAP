@@ -1,0 +1,32 @@
+samplesheet: config/samples.tsv
+reference: resource/reference/chm13v2.0_maskedY_rCRS.fa
+singularity_images:
+  bam_refiner: images/bam_refiner_v0.3.5b.sif
+  methylation: images/methylation-v0.0.1.sif
+  nanomonsv: images/nanomonsv-v0.8.0.sif
+  nanomonsv_postprocess: images/nanomonsv_postprocess-v0.2.5.sif
+  clairs: images/clairs-v0.4.0.sif
+  deepsomatic: images/DeepSomatic-v1.8.0.sif
+  point_mutation_postprocess: images/mutation_postprocess-v0.1.2.sif
+bam_refiner:
+  threads: 16
+steps:
+  bam_refiner: true
+  methylation: true
+  copynumber: true
+  nanomonsv_parse: true
+  nanomonsv_get: true
+  nanomonsv_postprocess: true
+  nanomonsv_insert_classify: true
+  nanomonsv_connect: true
+  nanomonsv_merge: true
+  clairs: true
+  deepsomatic: true
+  clairs_postprocess: true
+  deepsomatic_postprocess: true
+hap1_satellite: resources/annotation/misha_BL2009.hap1_dna-brnn.bed.gz
+hap2_satellite: resources/annotation/misha_BL2009.hap2_dna-brnn.bed.gz
+sex: female
+simple_repeat: resources/annotation/misha_BL2009.simple_repeats.bed.gz
+gtf_file: resources/annotation/misha_BL2009.Ensembl_GRCh38.liftoff.gtf.gz
+line1_bed: resources/annotation/misha_BL2009.LINE1.bed.gz
