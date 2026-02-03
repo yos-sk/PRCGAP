@@ -18,6 +18,7 @@ def create_config(args):
         "singularity_images": {
             "bam_refiner": args.bam_refiner_image,
             "methylation": args.methylation_image,
+            "copynumber": args.copynumber_image,
             "nanomonsv": args.nanomonsv_image,
             "nanomonsv_postprocess": args.nanomonsv_postprocess_image,
             "clairs": args.clairs_image,
@@ -87,6 +88,7 @@ Examples:
     --reference ref.fa \\
     --bam-refiner-image bam_refiner.sif \\
     --methylation-image methylation.sif \\
+    --copynumber-image copynumber.sif \\
     --nanomonsv-image nanomonsv.sif \\
     --nanomonsv-postprocess-image nanomonsv_postprocess.sif \\
     --clairs-image clairs.sif \\
@@ -136,6 +138,11 @@ Examples:
         "--methylation-image",
         default="",
         help="Path to methylation calling Singularity image"
+    )
+    parser.add_argument(
+        "--copynumber-image",
+        default="",
+        help="Path to copy number calling Singularity image"
     )
     parser.add_argument(
         "--nanomonsv-image",

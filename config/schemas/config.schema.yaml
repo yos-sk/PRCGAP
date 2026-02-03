@@ -18,6 +18,9 @@ properties:
       methylation:
         type: string
         description: path to singularity image of tools for methylation calling
+      copynumber:
+        type: string
+        description: path to singularity image of tools for copy number calling
       nanomonsv:
         type: string
         description: path to singularity image of tools for SV calling (parse, get, insert_classify, connect, merge)
