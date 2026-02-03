@@ -4,8 +4,8 @@
 
 rule copynumber:
     input:
-        tumor_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor) if steps["bam_refiner"] else samples.loc[wc.tumor, "hifi"],
-        normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)) if steps["bam_refiner"] else samples.loc[get_paired_normal(wc.tumor), "hifi"],
+        tumor_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
+        normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
         reference=config.get("reference", ""),
