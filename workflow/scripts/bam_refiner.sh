@@ -32,7 +32,7 @@ else
         -f ${INPUT} \
         -h ${HAP1_ASSEMBLY} \
         -i ${HAP2_ASSEMBLY} \
-        -m "--MD" \
+        -m "--MD -y" \
         -o ${OUTPUT_DIR} \
         -p \
         -s ${SAMPLE} \
