@@ -4,7 +4,7 @@
 
 rule nanomonsv_parse_hifi:
     input:
-        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.sample, wc.sample) if steps["bam_refiner"] else samples.loc[wc.sample, "hifi"],
+        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.sample, wc.sample),
     output:
         bp_info="nanomonsv/hifi/{sample}.bp_info.sorted.bed.gz",
         bp_info_tbi="nanomonsv/hifi/{sample}.bp_info.sorted.bed.gz.tbi",
@@ -38,7 +38,7 @@ rule nanomonsv_parse_hifi:
 
 rule nanomonsv_parse_ont:
     input:
-        bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.sample, wc.sample) if steps["bam_refiner"] else samples.loc[wc.sample, "ont"],
+        bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.sample, wc.sample),
     output:
         bp_info="nanomonsv/ont/{sample}.bp_info.sorted.bed.gz",
         bp_info_tbi="nanomonsv/ont/{sample}.bp_info.sorted.bed.gz.tbi",
@@ -76,10 +76,10 @@ rule nanomonsv_parse_ont:
 
 rule nanomonsv_get_hifi:
     input:
-        tumor_rearrangement=lambda wc: "nanomonsv/hifi/{}.rearrangement.sorted.bedpe.gz".format(wc.tumor) if steps["nanomonsv_parse"] else [],
-        normal_rearrangement=lambda wc: "nanomonsv/hifi/{}.rearrangement.sorted.bedpe.gz".format(get_paired_normal(wc.tumor)) if steps["nanomonsv_parse"] else [],
-        tumor_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor) if steps["bam_refiner"] else samples.loc[wc.tumor, "hifi"],
-        normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)) if steps["bam_refiner"] else samples.loc[get_paired_normal(wc.tumor), "hifi"],
+        tumor_rearrangement=lambda wc: "nanomonsv/hifi/{}.rearrangement.sorted.bedpe.gz".format(wc.tumor),
+        normal_rearrangement=lambda wc: "nanomonsv/hifi/{}.rearrangement.sorted.bedpe.gz".format(get_paired_normal(wc.tumor)),
+        tumor_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
+        normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
     output:
@@ -117,10 +117,10 @@ rule nanomonsv_get_hifi:
 
 rule nanomonsv_get_ont:
     input:
-        tumor_rearrangement=lambda wc: "nanomonsv/ont/{}.rearrangement.sorted.bedpe.gz".format(wc.tumor) if steps["nanomonsv_parse"] else [],
-        normal_rearrangement=lambda wc: "nanomonsv/ont/{}.rearrangement.sorted.bedpe.gz".format(get_paired_normal(wc.tumor)) if steps["nanomonsv_parse"] else [],
-        tumor_bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor) if steps["bam_refiner"] else samples.loc[wc.tumor, "ont"],
-        normal_bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)) if steps["bam_refiner"] else samples.loc[get_paired_normal(wc.tumor), "ont"],
+        tumor_rearrangement=lambda wc: "nanomonsv/ont/{}.rearrangement.sorted.bedpe.gz".format(wc.tumor),
+        normal_rearrangement=lambda wc: "nanomonsv/ont/{}.rearrangement.sorted.bedpe.gz".format(get_paired_normal(wc.tumor)),
+        tumor_bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
+        normal_bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
     output:
@@ -163,7 +163,7 @@ rule nanomonsv_get_ont:
 rule nanomonsv_postprocess_hifi:
     input:
         result="nanomonsv/hifi/{tumor}.nanomonsv.result.txt",
-        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor) if steps["bam_refiner"] else samples.loc[wc.tumor, "hifi"],
+        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
     output:
         "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt"
     message:
@@ -191,7 +191,7 @@ rule nanomonsv_postprocess_hifi:
 rule nanomonsv_postprocess_ont:
     input:
         result="nanomonsv/ont/{tumor}.nanomonsv.result.txt",
-        bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor) if steps["bam_refiner"] else samples.loc[wc.tumor, "ont"],
+        bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
     output:
         "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.txt"
     message:
@@ -224,6 +224,8 @@ rule nanomonsv_postprocess_ont:
 rule nanomonsv_insert_classify_hifi:
     input:
         result="nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt",
+        assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
+        assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
     output:
         "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt"
     message:
@@ -247,13 +249,18 @@ rule nanomonsv_insert_classify_hifi:
             {input.result} \
             {params.output_dir} \
             {params.tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+            {input.assembly_hap1} \
+            {input.assembly_hap2} \
             {params.gtf_file} \
-            {params.line1_bed} &> {log}
+            {params.line1_bed} \
+             {SCRIPTS_DIR} &> {log}
         """
 
 rule nanomonsv_insert_classify_ont:
     input:
         result="nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.txt",
+        assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
+        assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
     output:
         "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt"
     message:
@@ -277,8 +284,11 @@ rule nanomonsv_insert_classify_ont:
             {input.result} \
             {params.output_dir} \
             {params.tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+            {input.assembly_hap1} \
+            {input.assembly_hap2} \
             {params.gtf_file} \
-            {params.line1_bed} &> {log}
+            {params.line1_bed} \
+            {SCRIPTS_DIR} &> {log}
         """
 
 # ====================================================================
