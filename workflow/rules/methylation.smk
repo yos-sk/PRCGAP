@@ -4,7 +4,7 @@
 
 rule methylation_hifi:
     input:
-        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.sample, wc.sample) if steps["bam_refiner"] else samples.loc[wc.sample, "hifi"],
+        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.sample, wc.sample),
         assembly_hap1=lambda wc: samples.loc[wc.sample, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.sample, "assembly_hap2"],
     output:
@@ -39,7 +39,7 @@ rule methylation_hifi:
 
 rule methylation_ont:
     input:
-        bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.sample, wc.sample) if steps["bam_refiner"] else samples.loc[wc.sample, "ont"],
+        bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.sample, wc.sample),
         assembly_hap1=lambda wc: samples.loc[wc.sample, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.sample, "assembly_hap2"],
     output:

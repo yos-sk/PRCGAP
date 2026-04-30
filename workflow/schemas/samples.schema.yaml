@@ -1,0 +1,29 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+description: entries for the sample sheet
+properties:
+  sample:
+    type: string
+    description: sample name/identifier
+  type:
+    type: string
+    description: normal or tumor
+  ont:
+    type: string
+    description: ont data (fastq.gz or bam). Multiple files can be comma-separated.
+  hifi:
+    type: string
+    description: hifi data (fastq.gz or bam). Multiple files can be comma-separated.
+  assembly_hap1:
+    type: string 
+    description: assembly hap1 (fasta)
+  assembly_hap2:
+    type: string
+    description: assembly hap2 (fasta)
+
+required:
+  - sample
+  - type
+  - ont 
+  - hifi 
+  - assembly_hap1
+  - assembly_hap2

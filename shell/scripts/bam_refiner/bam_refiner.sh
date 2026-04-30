@@ -15,7 +15,7 @@ DATA=$7
 
 ext="${INPUT##*.}"
 if [ $ext = "bam" ]; then
-    run_refine.sh \
+    bash run_refine.sh \
         -d \
         -b ${INPUT} \
         -h ${HAP1_ASSEMBLY} \
@@ -24,19 +24,19 @@ if [ $ext = "bam" ]; then
         -o ${OUTPUT_DIR} \
         -p \
         -s ${SAMPLE} \
-        -t ${THREAD} \
+        -t 16 \
         -u ${DATA}
 else
-    run_refine.sh \
+    bash run_refine.sh \
         -d \
         -f ${INPUT} \
         -h ${HAP1_ASSEMBLY} \
         -i ${HAP2_ASSEMBLY} \
-        -m "--MD -y" \
+        -m "--MD" \
         -o ${OUTPUT_DIR} \
         -p \
         -s ${SAMPLE} \
-        -t ${THREAD} \
+        -t 16 \
         -u ${DATA}
 fi
 

@@ -1,0 +1,76 @@
+# Main entrypoint of the workflow.
+# Please follow the best practices:
+# https://snakemake.readthedocs.io/en/stable/snakefiles/best_practices.html,
+# in particular regarding the standardized folder structure mentioned there.
+
+
+# load configuration
+# -----------------------------------------------------
+# Config file must be specified via --configfile when running snakemake.
+# Example: snakemake --configfile /path/to/config.yaml
+
+
+
+# load rules
+# -----------------------------------------------------
+include: "rules/commons.smk"
+include: "rules/process.smk"
+
+
+# optional messages, log and error handling
+# -----------------------------------------------------
+onstart:
+    print("\n--- Analysis started ---\n")
+
+
+onsuccess:
+    print("\n--- Workflow finished! ---\n")
+
+
+onerror:
+    print("\n--- An error occurred! ---\n")
+
+
+# target rules
+# -----------------------------------------------------
+# Always request the leaf outputs of every analysis path; Snakemake's DAG
+# resolution pulls in the upstream rules (bam_refiner, nanomonsv_parse/get/
+# postprocess, clairs, deepsomatic) automatically.
+def get_all_targets():
+    targets = []
+    all_samples = list(samples.index.get_level_values("sample"))
+
+    # methylation (per sample, both seqtypes)
+    targets.extend(expand(
+        "methylation/{sample}/{seqtype}/output",
+        sample=all_samples,
+        seqtype=["hifi", "ont"]
+    ))
+
+    # copynumber (per tumor)
+    targets.extend(expand("copynumber/{tumor}/output", tumor=tumors))
+
+    # nanomonsv: insert classify + connect + merge
+    targets.extend(expand(
+        "nanomonsv/{seqtype}/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt",
+        tumor=tumors,
+        seqtype=["hifi", "ont"]
+    ))
+    targets.extend(expand(
+        "nanomonsv/{seqtype}/{tumor}.nanomonsv.new_result.sv_typed.connected.txt",
+        tumor=tumors,
+        seqtype=["hifi", "ont"]
+    ))
+    targets.extend(expand("nanomonsv/{tumor}.nanomonsv.result.merged.txt", tumor=tumors))
+
+    # point-mutation postprocess leaves
+    targets.extend(expand("clairs_post/{tumor}/{tumor}.haplotyped.bed", tumor=tumors))
+    targets.extend(expand("deepsomatic_post/{tumor}/{tumor}.haplotyped.bed", tumor=tumors))
+
+    return targets
+
+
+rule all:
+    input:
+        get_all_targets()
+    default_target: True

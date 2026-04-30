@@ -16,10 +16,17 @@ THREADS=$6
 
 mkdir -p ${OUTPUT_DIR}/pileup/workspace
 
-while IFS=$'\t' read bed_file pileup_file; do
-    samtools mpileup -l ${bed_file} -f ${REFERENCE_FA} --output-QNAME ${INPUT_BAM} | \
-        awk '{print $1 "\t" $2 -1 "\t" $2 "\t" $4 "\t" $5 "\t" $6 "\t" $7}' > ${pileup_file}
-done < ${PILEUP_TASKS}
+export INPUT_BAM REFERENCE_FA
+
+run_pileup() {
+    local bed_file=$1
+    local pileup_file=$2
+    samtools mpileup -l "${bed_file}" -f "${REFERENCE_FA}" --output-QNAME "${INPUT_BAM}" | \
+        awk '{print $1 "\t" $2 -1 "\t" $2 "\t" $4 "\t" $5 "\t" $6 "\t" $7}' > "${pileup_file}"
+}
+export -f run_pileup
+
+xargs -a "${PILEUP_TASKS}" -n 2 -P "${THREADS}" bash -c 'run_pileup "$@"' _
 
 cat ${OUTPUT_DIR}/pileup/workspace/*.pileup | sort -k 1,1 -k 2,2n > ${OUTPUT_DIR}/pileup/${SAMPLE}_pileup.bed
 bgzip -@ ${THREADS} -f ${OUTPUT_DIR}/pileup/${SAMPLE}_pileup.bed

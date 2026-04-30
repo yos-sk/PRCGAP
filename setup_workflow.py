@@ -1,386 +1,322 @@
 #!/usr/bin/env python3
 """
-Setup script for PRCGAP Snakemake workflow configuration.
-This script creates config.yaml from command-line arguments.
+Setup script for PRCGAP Snakemake workflow.
+Generates config.yaml and a runner shell script from command-line arguments.
 """
 
 import argparse
+import os
+import stat
 import sys
 import yaml
 from pathlib import Path
 
 
+def _image_path(explicit, images_dir, tool):
+    """Return user-supplied image path or fall back to <images_dir>/<tool>.sif."""
+    if explicit:
+        return explicit
+    return os.path.join(images_dir, f"{tool}.sif")
+
+
+# (module_name, default_threads, default_mem_mb) for each rule whose
+# resources can be overridden from the CLI.
+_RESOURCE_DEFAULTS = [
+    ("bam_refiner_kmer", 16, 128000),
+    ("bam_refiner", 16, 128000),
+    ("assembly_bwa_index", 1, 16000),
+    ("methylation", 16, 128000),
+    ("copynumber", 16, 128000),
+    ("nanomonsv_parse", 16, 128000),
+    ("nanomonsv_get", 16, 240000),
+    ("nanomonsv_postprocess", 1, 30000),
+    ("nanomonsv_insert_classify", 16, 128000),
+    ("nanomonsv_connect", 1, 30000),
+    ("nanomonsv_merge", 1, 30000),
+    ("clairs", 16, 128000),
+    ("deepsomatic", 16, 128000),
+    ("clairs_postprocess", 1, 32000),
+    ("clairs_postprocess_realign", 16, 128000),
+    ("clairs_postprocess_pileup", 6, 240000),
+    ("deepsomatic_postprocess", 1, 32000),
+    ("deepsomatic_postprocess_realign", 16, 128000),
+    ("deepsomatic_postprocess_pileup", 6, 240000),
+]
+
+
+def _abs(path):
+    """Absolutise a path WITHOUT following symlinks. Empty/None passes through.
+
+    Snakemake runs with cwd=--directory (output_dir), so any relative path
+    in config.yaml would resolve under output_dir and miss the user's input
+    files. We absolutise at config-generation time.
+
+    We use os.path.abspath rather than Path.resolve() so symlinks like
+    /home/<user> -> /hshare1/.../home/<user> stay as the user-facing path.
+    Following symlinks would yield paths that aren't bind-mounted into the
+    singularity/apptainer container, breaking --pwd inside the container.
+    """
+    if not path:
+        return path
+    return os.path.abspath(os.path.expanduser(path))
+
+
+# Profile config.yaml keys whose values are paths to scripts living inside
+# the profile dir; snakemake resolves them relative to cwd (not the profile
+# dir), so we rewrite them to absolute paths.
+_PROFILE_PATH_KEYS = (
+    "jobscript",
+    "cluster",
+    "cluster-status",
+    "cluster-cancel",
+    "cluster-generic-submit-cmd",
+    "cluster-generic-status-cmd",
+    "cluster-generic-cancel-cmd",
+)
+
+
+def _absolutise_profile_paths(profile_dir: Path):
+    """Rewrite path-valued keys in <profile_dir>/config.yaml to absolute.
+
+    Only rewrites values that resolve to an existing file inside the profile
+    dir (so already-absolute or already-resolved paths are left alone).
+    """
+    cfg = profile_dir / "config.yaml"
+    if not cfg.exists():
+        return
+    with open(cfg) as f:
+        data = yaml.safe_load(f) or {}
+
+    changed = False
+    for key in _PROFILE_PATH_KEYS:
+        val = data.get(key)
+        if not isinstance(val, str) or not val:
+            continue
+        if Path(val).is_absolute():
+            continue
+        # Use abspath (no symlink follow) so the rewritten path matches what
+        # gets bind-mounted into the container.
+        candidate = Path(os.path.abspath(profile_dir / val))
+        if candidate.exists():
+            data[key] = str(candidate)
+            changed = True
+
+    if changed:
+        with open(cfg, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
 def create_config(args):
     """Create configuration dictionary from arguments."""
     config = {
-        "samplesheet": args.samplesheet,
-        "reference": args.reference,
+        "output_dir": _abs(args.output_dir),
+        "samplesheet": _abs(args.samplesheet),
+        "reference": _abs(args.reference),
         "singularity_images": {
-            "bam_refiner": args.bam_refiner_image,
-            "methylation": args.methylation_image,
-            "copynumber": args.copynumber_image,
-            "nanomonsv": args.nanomonsv_image,
-            "nanomonsv_postprocess": args.nanomonsv_postprocess_image,
-            "clairs": args.clairs_image,
-            "deepsomatic": args.deepsomatic_image,
-            "point_mutation_postprocess": args.point_mutation_postprocess_image,
+            "bam_refiner": _abs(_image_path(args.bam_refiner_image, args.images_dir, "bam_refiner")),
+            "methylation": _abs(_image_path(args.methylation_image, args.images_dir, "methylation")),
+            "copynumber": _abs(_image_path(args.copynumber_image, args.images_dir, "copynumber")),
+            "nanomonsv": _abs(_image_path(args.nanomonsv_image, args.images_dir, "nanomonsv")),
+            "nanomonsv_postprocess": _abs(_image_path(args.nanomonsv_postprocess_image, args.images_dir, "nanomonsv_postprocess")),
+            "clairs": _abs(_image_path(args.clairs_image, args.images_dir, "clairs")),
+            "deepsomatic": _abs(_image_path(args.deepsomatic_image, args.images_dir, "deepsomatic")),
+            "point_mutation_postprocess": _abs(_image_path(args.point_mutation_postprocess_image, args.images_dir, "point_mutation_postprocess")),
         },
         "resources": {
-            "bam_refiner": {"threads": args.threads, "mem_mb": args.mem_mb},
-            "methylation": {"threads": 8, "mem_mb": 32000},
-            "copynumber": {"threads": 8, "mem_mb": 32000},
-            "nanomonsv_parse": {"threads": 4, "mem_mb": 16000},
-            "nanomonsv_get": {"threads": 8, "mem_mb": 32000},
-            "nanomonsv_postprocess": {"threads": 4, "mem_mb": 16000},
-            "nanomonsv_insert_classify": {"threads": 4, "mem_mb": 16000},
-            "nanomonsv_connect": {"threads": 4, "mem_mb": 16000},
-            "nanomonsv_merge": {"threads": 2, "mem_mb": 8000},
-            "clairs": {"threads": 16, "mem_mb": 64000},
-            "deepsomatic": {"threads": 16, "mem_mb": 64000},
-            "clairs_postprocess": {"threads": 4, "mem_mb": 16000},
-            "clairs_postprocess_realign": {"threads": 16, "mem_mb": 32000},
-            "clairs_postprocess_pileup": {"threads": 16, "mem_mb": 32000},
-            "deepsomatic_postprocess": {"threads": 4, "mem_mb": 16000},
-            "deepsomatic_postprocess_realign": {"threads": 16, "mem_mb": 32000},
-            "deepsomatic_postprocess_pileup": {"threads": 16, "mem_mb": 32000},
+            name: {
+                "threads": getattr(args, f"{name}_threads"),
+                "mem_mb": getattr(args, f"{name}_mem_mb"),
+            }
+            for name, _, _ in _RESOURCE_DEFAULTS
         },
-        "steps": {
-            "bam_refiner": args.enable_bam_refiner,
-            "methylation": args.enable_methylation,
-            "copynumber": args.enable_copynumber,
-            "nanomonsv_parse": args.enable_nanomonsv_parse,
-            "nanomonsv_get": args.enable_nanomonsv_get,
-            "nanomonsv_postprocess": args.enable_nanomonsv_postprocess,
-            "nanomonsv_insert_classify": args.enable_nanomonsv_insert_classify,
-            "nanomonsv_connect": args.enable_nanomonsv_connect,
-            "nanomonsv_merge": args.enable_nanomonsv_merge,
-            "clairs": args.enable_clairs,
-            "deepsomatic": args.enable_deepsomatic,
-            "clairs_postprocess": args.enable_clairs_postprocess,
-            "deepsomatic_postprocess": args.enable_deepsomatic_postprocess,
-        },
-        "hap1_satellite": args.hap1_satellite or "",
-        "hap2_satellite": args.hap2_satellite or "",
+        "hap1_satellite": _abs(args.hap1_satellite) or "",
+        "hap2_satellite": _abs(args.hap2_satellite) or "",
         "sex": args.sex,
-        "simple_repeat": args.simple_repeat or "",
-        "gtf_file": args.gtf_file or "",
-        "line1_bed": args.line1_bed or "",
+        "simple_repeat": _abs(args.simple_repeat) or "",
+        "gtf_file": _abs(args.gtf_file) or "",
+        "line1_bed": _abs(args.line1_bed) or "",
     }
     return config
 
 
+def write_runner(args, config_path: Path, runner_path: Path):
+    """Emit a runner shell script invoking snakemake.
+
+    Pattern (after cosigt/organize.py):
+      - With --profile  -> snakemake --profile <profile> ...
+      - Without         -> snakemake -j <threads> ...
+      - Always uses --use-singularity (conda is not supported).
+    """
+    # Use _abs (os.path.abspath) so symlinks aren't followed; the resolved
+    # path must match what's bind-mounted into the singularity container.
+    workflow_dir = _abs(args.workflow_dir)
+    snakefile = os.path.join(workflow_dir, "Snakefile")
+    output_dir = _abs(args.output_dir)
+    config_abs = _abs(str(config_path))
+
+    cmd_lines = ["#!/bin/bash", "set -euo pipefail", ""]
+
+    cmd_parts = [
+        "snakemake",
+        f"--snakefile {snakefile}",
+        f"--configfile {config_abs}",
+        f"--directory {output_dir}",
+    ]
+
+    if args.profile:
+        # snakemake runs with cwd=--directory (output_dir), so a relative
+        # profile path would miss. Absolutise here (no symlink follow).
+        profile_path = Path(_abs(args.profile))
+        # Snakemake interprets path-valued keys inside profile/config.yaml
+        # (jobscript, cluster, cluster-status, cluster-cancel, and the v8
+        # cluster-generic-* equivalents) relative to cwd, not to the profile
+        # dir, so they break under --directory. Rewrite any such bare-name
+        # values to absolute paths.
+        _absolutise_profile_paths(profile_path)
+        cmd_parts.append(f"--profile {profile_path}")
+    # snakemake always requires -j: locally it caps parallel rules,
+    # under a cluster profile it caps the number of jobs queued at once.
+    cmd_parts.append(f"-j {args.jobs}")
+
+    cmd_parts.append("--use-singularity")
+    if args.singularity_bind:
+        cmd_parts.append(f'--singularity-args "-B {args.singularity_bind} -e"')
+
+    cmd_parts.extend([
+        "--rerun-triggers mtime",
+        "--rerun-incomplete",
+        "--keep-going",
+        '"$@"',
+    ])
+
+    cmd_lines.append(" \\\n    ".join(cmd_parts))
+    cmd_lines.append("")
+
+    runner_path.parent.mkdir(parents=True, exist_ok=True)
+    runner_path.write_text("\n".join(cmd_lines))
+    runner_path.chmod(runner_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
 def main():
-    """Main function to parse arguments and create config."""
     parser = argparse.ArgumentParser(
-        description="Setup PRCGAP Snakemake workflow configuration",
+        description="Setup PRCGAP Snakemake workflow (config + runner script)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic setup with BAM refiner only
-  python setup_workflow.py \\
-    --samplesheet samples.tsv \\
-    --reference ref.fa \\
-    --bam-refiner-image bam_refiner.sif
+  # 1. Pre-stage images (once)
+  bash Dockerfile/pull_images.sh   # populates ./images/<tool>.sif
 
-  # Full pipeline setup (using --full-pipeline shortcut)
+  # 2. Local execution
   python setup_workflow.py \\
     --samplesheet samples.tsv \\
     --reference ref.fa \\
-    --bam-refiner-image bam_refiner.sif \\
-    --methylation-image methylation.sif \\
-    --copynumber-image copynumber.sif \\
-    --nanomonsv-image nanomonsv.sif \\
-    --nanomonsv-postprocess-image nanomonsv_postprocess.sif \\
-    --clairs-image clairs.sif \\
-    --deepsomatic-image deepsomatic.sif \\
-    --point-mutation-postprocess-image mutation_postprocess.sif \\
-    --full-pipeline \\
-    --hap1-satellite hap1_sat.bed \\
-    --hap2-satellite hap2_sat.bed \\
-    --sex female \\
-    --gtf-file annotation.gtf \\
-    --simple-repeat simple_repeat.bed \\
-    --line1-bed line1.bed \\
-    --output config/config.yaml
+    --jobs 8
 
-  # With copy number analysis
+  # 3. SLURM cluster via profile
   python setup_workflow.py \\
     --samplesheet samples.tsv \\
     --reference ref.fa \\
-    --bam-refiner-image bam_refiner.sif \\
-    --enable-copynumber \\
-    --hap1-satellite hap1_sat.bed \\
-    --hap2-satellite hap2_sat.bed \\
-    --sex female \\
-    --output config/config.yaml
+    --profile profile/slurm
+
+  # Override a single image path:
+  python setup_workflow.py ... --bam-refiner-image /path/to/custom.sif
         """
     )
 
-    # Required arguments
-    parser.add_argument(
-        "--samplesheet",
-        required=True,
-        help="Path to sample sheet TSV file (required)"
-    )
-    parser.add_argument(
-        "--reference",
-        required=True,
-        help="Path to reference genome FASTA file (required)"
-    )
+    # ---------- Required I/O ----------
+    parser.add_argument("--samplesheet", required=True, help="sample sheet TSV")
+    parser.add_argument("--reference", required=True, help="reference genome FASTA")
 
-    # Singularity images
-    parser.add_argument(
-        "--bam-refiner-image",
-        required=True,
-        help="Path to BAM refiner Singularity image (required)"
-    )
-    parser.add_argument(
-        "--methylation-image",
-        default="",
-        help="Path to methylation calling Singularity image"
-    )
-    parser.add_argument(
-        "--copynumber-image",
-        default="",
-        help="Path to copy number calling Singularity image"
-    )
-    parser.add_argument(
-        "--nanomonsv-image",
-        default="",
-        help="Path to NanoMonSV Singularity image (for parse, get, and other steps)"
-    )
-    parser.add_argument(
-        "--nanomonsv-postprocess-image",
-        default="",
-        help="Path to NanoMonSV postprocess Singularity image"
-    )
-    parser.add_argument(
-        "--clairs-image",
-        default="",
-        help="Path to ClairS Singularity image"
-    )
-    parser.add_argument(
-        "--deepsomatic-image",
-        default="",
-        help="Path to DeepSomatic Singularity image"
-    )
-    parser.add_argument(
-        "--point-mutation-image",
-        default="",
-        help="Path to point mutation (DeepSomatic/ClairS) Singularity image (deprecated, use --clairs-image and --deepsomatic-image)"
-    )
+    # ---------- Singularity images ----------
+    # Defaults assume Dockerfile/pull_images.sh has populated ./images/.
+    # Pass an explicit --*-image to override.
+    parser.add_argument("--images-dir", default="images",
+                        help="directory containing prepared singularity images (default: images)")
+    parser.add_argument("--bam-refiner-image", default=None, help="bam_refiner image (default: <images-dir>/bam_refiner.sif)")
+    parser.add_argument("--methylation-image", default=None, help="methylation image (default: <images-dir>/methylation.sif)")
+    parser.add_argument("--copynumber-image", default=None, help="copynumber image (default: <images-dir>/copynumber.sif)")
+    parser.add_argument("--nanomonsv-image", default=None, help="nanomonsv image (default: <images-dir>/nanomonsv.sif)")
+    parser.add_argument("--nanomonsv-postprocess-image", default=None, help="nanomonsv_postprocess image (default: <images-dir>/nanomonsv_postprocess.sif)")
+    parser.add_argument("--clairs-image", default=None, help="ClairS image (default: <images-dir>/clairs.sif)")
+    parser.add_argument("--deepsomatic-image", default=None, help="DeepSomatic image (default: <images-dir>/deepsomatic.sif)")
+    parser.add_argument("--point-mutation-postprocess-image", default=None,
+                        help="mutation postprocess image (default: <images-dir>/point_mutation_postprocess.sif)")
 
-    # Full pipeline shortcut
-    parser.add_argument(
-        "--full-pipeline",
-        action="store_true",
-        default=False,
-        help="Enable all analysis steps (equivalent to enabling all --enable-* options)"
+    # ---------- Resources (per-module overrides) ----------
+    res_group = parser.add_argument_group(
+        "Per-module resources",
+        "Override threads / memory for individual rules. All optional; "
+        "omitted values fall back to the defaults shown below.",
     )
+    for name, default_threads, default_mem_mb in _RESOURCE_DEFAULTS:
+        flag_base = name.replace("_", "-")
+        res_group.add_argument(
+            f"--{flag_base}-threads",
+            type=int, default=default_threads,
+            help=f"threads for {name} (default: {default_threads})",
+        )
+        res_group.add_argument(
+            f"--{flag_base}-mem-mb",
+            type=int, default=default_mem_mb,
+            help=f"memory MB for {name} (default: {default_mem_mb})",
+        )
 
-    # Analysis steps (enable/disable)
-    parser.add_argument(
-        "--enable-bam-refiner",
-        action="store_true",
-        default=True,
-        help="Enable BAM refiner (default: True, this is typically the base step)"
-    )
-    parser.add_argument(
-        "--disable-bam-refiner",
-        action="store_false",
-        dest="enable_bam_refiner",
-        help="Disable BAM refiner"
-    )
-    parser.add_argument(
-        "--enable-methylation",
-        action="store_true",
-        default=False,
-        help="Enable methylation analysis"
-    )
-    parser.add_argument(
-        "--enable-copynumber",
-        action="store_true",
-        default=False,
-        help="Enable copy number analysis"
-    )
-    parser.add_argument(
-        "--enable-nanomonsv-parse",
-        action="store_true",
-        default=False,
-        help="Enable NanoMonSV parse step"
-    )
-    parser.add_argument(
-        "--enable-nanomonsv-get",
-        action="store_true",
-        default=False,
-        help="Enable NanoMonSV get step (requires parse step)"
-    )
-    parser.add_argument(
-        "--enable-nanomonsv-postprocess",
-        action="store_true",
-        default=False,
-        help="Enable NanoMonSV postprocess step (requires get step)"
-    )
-    parser.add_argument(
-        "--enable-nanomonsv-insert-classify",
-        action="store_true",
-        default=False,
-        help="Enable NanoMonSV insert classification (requires get step)"
-    )
-    parser.add_argument(
-        "--enable-nanomonsv-connect",
-        action="store_true",
-        default=False,
-        help="Enable NanoMonSV connect step (requires postprocess step)"
-    )
-    parser.add_argument(
-        "--enable-nanomonsv-merge",
-        action="store_true",
-        default=False,
-        help="Enable NanoMonSV merge step (requires postprocess step)"
-    )
-    parser.add_argument(
-        "--enable-clairs",
-        action="store_true",
-        default=False,
-        help="Enable ClairS variant calling"
-    )
-    parser.add_argument(
-        "--enable-deepsomatic",
-        action="store_true",
-        default=False,
-        help="Enable DeepSomatic variant calling"
-    )
-    parser.add_argument(
-        "--enable-clairs-postprocess",
-        action="store_true",
-        default=False,
-        help="Enable ClairS postprocessing (requires clairs step)"
-    )
-    parser.add_argument(
-        "--enable-deepsomatic-postprocess",
-        action="store_true",
-        default=False,
-        help="Enable DeepSomatic postprocessing (requires deepsomatic step)"
-    )
+    # ---------- Sample-level params ----------
+    parser.add_argument("--sex", choices=["female", "male"], default="female")
+    parser.add_argument("--hap1-satellite", default="")
+    parser.add_argument("--hap2-satellite", default="")
+    parser.add_argument("--simple-repeat", default="")
+    parser.add_argument("--gtf-file", default="")
+    parser.add_argument("--line1-bed", default="")
 
-    # Resource parameters (defaults apply to bam_refiner, other tools use their own defaults)
-    parser.add_argument(
-        "--threads",
-        type=int,
-        default=16,
-        help="Default number of threads for bam_refiner (default: 16). Other tools use their own defaults."
-    )
-    parser.add_argument(
-        "--mem-mb",
-        type=int,
-        default=64000,
-        help="Default memory in MB for bam_refiner (default: 64000). Other tools use their own defaults."
-    )
-    parser.add_argument(
-        "--sex",
-        choices=["female", "male"],
-        default="female",
-        help="Sex of the sample for copy number analysis (default: female)"
-    )
-    parser.add_argument(
-        "--hap1-satellite",
-        default="",
-        help="Path to satellite regions for haplotype 1"
-    )
-    parser.add_argument(
-        "--hap2-satellite",
-        default="",
-        help="Path to satellite regions for haplotype 2"
-    )
-    parser.add_argument(
-        "--simple-repeat",
-        default="",
-        help="Path to simple repeat regions file"
-    )
-    parser.add_argument(
-        "--gtf-file",
-        default="",
-        help="Path to GTF annotation file"
-    )
-    parser.add_argument(
-        "--line1-bed",
-        default="",
-        help="Path to LINE1 element BED file"
-    )
-    parser.add_argument(
-        "--point-mutation-postprocess-image",
-        default="",
-        help="Path to point mutation postprocessing Singularity image"
-    )
+    # ---------- Output / runner ----------
+    parser.add_argument("--output-dir", default="results",
+                        help="snakemake working directory for results (default: results)")
+    parser.add_argument("--output", "-o", default="config/config.yaml",
+                        help="path for generated config.yaml (default: config/config.yaml)")
+    parser.add_argument("--runner", default="run_workflow.sh",
+                        help="path for generated runner shell script (default: run_workflow.sh)")
+    parser.add_argument("--workflow-dir", default="workflow",
+                        help="snakemake workflow directory containing Snakefile (default: workflow)")
+    parser.add_argument("--force", "-f", action="store_true", default=False,
+                        help="Overwrite existing output files")
 
-    # Output
-    parser.add_argument(
-        "--output",
-        "-o",
-        default="config/config.yaml",
-        help="Output path for config.yaml (default: config/config.yaml)"
-    )
-    parser.add_argument(
-        "--force",
-        "-f",
-        action="store_true",
-        default=False,
-        help="Overwrite existing config file"
-    )
+    # ---------- Executor / container backend ----------
+    parser.add_argument("--profile", default=None,
+                        help="snakemake profile path (e.g. profile/slurm). When set, "
+                             "snakemake runs jobs through that profile instead of locally.")
+    parser.add_argument("--jobs", "-j", type=int, default=8,
+                        help="max concurrent jobs (locally: parallel rules; "
+                             "with --profile: jobs queued in the cluster). default: 8")
+    parser.add_argument("--singularity-bind", default="",
+                        help='extra bind paths for singularity, e.g. "/data,/scratch" '
+                             "(ignored when --profile is set)")
 
     args = parser.parse_args()
 
-    # If --full-pipeline is specified, enable all analysis steps
-    if args.full_pipeline:
-        args.enable_bam_refiner = True
-        args.enable_methylation = True
-        args.enable_copynumber = True
-        args.enable_nanomonsv_parse = True
-        args.enable_nanomonsv_get = True
-        args.enable_nanomonsv_postprocess = True
-        args.enable_nanomonsv_insert_classify = True
-        args.enable_nanomonsv_connect = True
-        args.enable_nanomonsv_merge = True
-        args.enable_clairs = True
-        args.enable_deepsomatic = True
-        args.enable_clairs_postprocess = True
-        args.enable_deepsomatic_postprocess = True
+    config_path = Path(args.output)
+    runner_path = Path(args.runner)
 
-    # Check if output file exists
-    output_path = Path(args.output)
-    if output_path.exists() and not args.force:
-        print(f"Error: {args.output} already exists. Use --force to overwrite.")
-        sys.exit(1)
+    for p in (config_path, runner_path):
+        if p.exists() and not args.force:
+            print(f"Error: {p} already exists. Use --force to overwrite.")
+            sys.exit(1)
 
-    # Create output directory if it doesn't exist
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Create configuration
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config = create_config(args)
 
-    # Write configuration to YAML
-    try:
-        with open(output_path, 'w') as f:
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-        print(f"✓ Configuration written to {output_path}")
-        print("\nConfiguration summary:")
-        print(f"  Samplesheet: {args.samplesheet}")
-        print(f"  Reference: {args.reference}")
-        print("\nEnabled steps:")
-        for step, enabled in config["steps"].items():
-            if enabled:
-                print(f"  ✓ {step}")
-        print("\nResource defaults (can be overridden in config.yaml):")
-        print(f"  bam_refiner: threads={args.threads}, mem_mb={args.mem_mb}")
-        print("  (See config.yaml for all tool resource settings)")
-        print("\nSingularity images:")
-        for img, path in config["singularity_images"].items():
-            if path:
-                print(f"  {img}: {path}")
-    except Exception as e:
-        print(f"Error writing configuration: {e}")
-        sys.exit(1)
+    with open(config_path, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+    print(f"✓ Configuration written to {config_path}")
+
+    write_runner(args, config_path, runner_path)
+    print(f"✓ Runner script written to {runner_path}")
+
+    if args.profile:
+        print(f"\nExecutor: snakemake profile {args.profile}")
+    else:
+        print(f"\nExecutor: local (-j {args.jobs})")
+    print("Container backend: singularity")
 
 
 if __name__ == "__main__":

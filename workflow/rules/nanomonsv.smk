@@ -15,7 +15,7 @@ rule nanomonsv_parse_hifi:
         rearrangement="nanomonsv/hifi/{sample}.rearrangement.sorted.bedpe.gz",
         rearrangement_tbi="nanomonsv/hifi/{sample}.rearrangement.sorted.bedpe.gz.tbi",
     message:
-        "--- Running NanoMonSV parse for {wildcards.sample} HiFi data"
+        "--- Running nanomonsv parse for {wildcards.sample} HiFi data"
     params:
         sample="{sample}",
         output_dir="nanomonsv/hifi"
@@ -49,7 +49,7 @@ rule nanomonsv_parse_ont:
         rearrangement="nanomonsv/ont/{sample}.rearrangement.sorted.bedpe.gz",
         rearrangement_tbi="nanomonsv/ont/{sample}.rearrangement.sorted.bedpe.gz.tbi",
     message:
-        "--- Running NanoMonSV parse for {wildcards.sample} ONT data"
+        "--- Running nanomonsv parse for {wildcards.sample} ONT data"
     params:
         sample="{sample}",
         output_dir="nanomonsv/ont"
@@ -86,7 +86,7 @@ rule nanomonsv_get_hifi:
         result="nanomonsv/hifi/{tumor}.nanomonsv.result.txt",
         supporting="nanomonsv/hifi/{tumor}.nanomonsv.supporting_read.txt"
     message:
-        "--- Running NanoMonSV get for {wildcards.tumor} HiFi data"
+        "--- Running nanomonsv get for {wildcards.tumor} HiFi data"
     params:
         tumor="{tumor}",
         normal=lambda wc: get_paired_normal(wc.tumor),
@@ -127,7 +127,7 @@ rule nanomonsv_get_ont:
         result="nanomonsv/ont/{tumor}.nanomonsv.result.txt",
         supporting="nanomonsv/ont/{tumor}.nanomonsv.supporting_read.txt"
     message:
-        "--- Running NanoMonSV get for {wildcards.tumor} ONT data"
+        "--- Running nanomonsv get for {wildcards.tumor} ONT data"
     params:
         tumor="{tumor}",
         normal=lambda wc: get_paired_normal(wc.tumor),
@@ -167,7 +167,7 @@ rule nanomonsv_postprocess_hifi:
     output:
         "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt"
     message:
-        "--- Running NanoMonSV postprocess for {wildcards.tumor} HiFi data"
+        "--- Running nanomonsv postprocess for {wildcards.tumor} HiFi data"
     params:
         tumor="{tumor}",
         output_dir="nanomonsv/hifi"
@@ -184,7 +184,8 @@ rule nanomonsv_postprocess_hifi:
         /bin/bash {SCRIPTS_DIR}/nanomonsv/nanomonsv_postprocess.sh \
             {params.tumor} \
             {params.output_dir} \
-            {input.bam} &> {log}
+            {input.bam} \
+            {SCRIPTS_DIR} &> {log}
         touch {output}
         """
 
@@ -195,7 +196,7 @@ rule nanomonsv_postprocess_ont:
     output:
         "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.txt"
     message:
-        "--- Running NanoMonSV postprocess for {wildcards.tumor} ONT data"
+        "--- Running nanomonsv postprocess for {wildcards.tumor} ONT data"
     params:
         tumor="{tumor}",
         output_dir="nanomonsv/ont"
@@ -218,6 +219,42 @@ rule nanomonsv_postprocess_ont:
         """
 
 # ====================================================================
+# ASSEMBLY BWA INDEX (shared by insert_classify hifi/ont)
+# ====================================================================
+#
+# bwa index writes .pac/.bwt/.sa next to the assembly fasta. If hifi and ont
+# insert_classify rules both invoke `bwa index` concurrently they corrupt
+# each other's intermediate files. Centralise indexing in a single rule and
+# make insert_classify depend on its marker output. We use the kmer-source
+# canonical sample pattern so each (hap1, hap2) pair is indexed only once.
+
+rule assembly_bwa_index:
+    input:
+        hap1=lambda wc: samples.loc[wc.sample, "assembly_hap1"],
+        hap2=lambda wc: samples.loc[wc.sample, "assembly_hap2"],
+    output:
+        marker=touch("bwa_index/{sample}/.indexed")
+    message:
+        "--- Building bwa index for assembly of {wildcards.sample}"
+    threads:
+        get_threads("assembly_bwa_index", 1)
+    resources:
+        mem_mb=get_mem_mb("assembly_bwa_index", 16000)
+    log:
+        "logs/bwa_index/{sample}.log"
+    singularity:
+        config.get("singularity_images", {}).get("nanomonsv", "")
+    shell:
+        """
+        ( for asm in {input.hap1} {input.hap2}; do
+              if [ ! -e "${{asm}}.sa" ]; then
+                  bwa index "${{asm}}"
+              fi
+          done ) &> {log}
+        """
+
+
+# ====================================================================
 # NANOMONSV INSERT CLASSIFY
 # ====================================================================
 
@@ -226,10 +263,11 @@ rule nanomonsv_insert_classify_hifi:
         result="nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt",
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
+        bwa_index_done=lambda wc: "bwa_index/{}/.indexed".format(get_kmer_source(wc.tumor)),
     output:
         "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt"
     message:
-        "--- Running NanoMonSV insert classification for {wildcards.tumor} HiFi data"
+        "--- Running nanomonsv insert classification for {wildcards.tumor} HiFi data"
     params:
         tumor="{tumor}",
         output_dir="nanomonsv/hifi",
@@ -253,7 +291,7 @@ rule nanomonsv_insert_classify_hifi:
             {input.assembly_hap2} \
             {params.gtf_file} \
             {params.line1_bed} \
-             {SCRIPTS_DIR} &> {log}
+            {SCRIPTS_DIR} &> {log}
         """
 
 rule nanomonsv_insert_classify_ont:
@@ -261,10 +299,11 @@ rule nanomonsv_insert_classify_ont:
         result="nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.txt",
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
+        bwa_index_done=lambda wc: "bwa_index/{}/.indexed".format(get_kmer_source(wc.tumor)),
     output:
         "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt"
     message:
-        "--- Running NanoMonSV insert classification for {wildcards.tumor} ONT data"
+        "--- Running nanomonsv insert classification for {wildcards.tumor} ONT data"
     params:
         tumor="{tumor}",
         output_dir="nanomonsv/ont",
@@ -302,7 +341,7 @@ rule nanomonsv_connect_hifi:
     output:
         "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.connected.txt"
     message:
-        "--- Running NanoMonSV connect for {wildcards.tumor} HiFi data"
+        "--- Running nanomonsv connect for {wildcards.tumor} HiFi data"
     params:
         tumor="{tumor}",
         output_dir="nanomonsv/hifi"
@@ -319,7 +358,8 @@ rule nanomonsv_connect_hifi:
         /bin/bash {SCRIPTS_DIR}/nanomonsv/nanomonsv_connect.sh \
             {input.result} \
             {input.supporting} \
-            {params.output_dir} &> {log}
+            {params.output_dir} \
+            {SCRIPTS_DIR} &> {log}
         touch {output}
         """
 
@@ -330,7 +370,7 @@ rule nanomonsv_connect_ont:
     output:
         "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.connected.txt"
     message:
-        "--- Running NanoMonSV connect for {wildcards.tumor} ONT data"
+        "--- Running nanomonsv connect for {wildcards.tumor} ONT data"
     params:
         tumor="{tumor}",
         output_dir="nanomonsv/ont"
@@ -347,7 +387,8 @@ rule nanomonsv_connect_ont:
         /bin/bash {SCRIPTS_DIR}/nanomonsv/nanomonsv_connect.sh \
             {input.result} \
             {input.supporting} \
-            {params.output_dir} &> {log}
+            {params.output_dir} \
+            {SCRIPTS_DIR} &> {log}
         touch {output}
         """
 
@@ -362,7 +403,7 @@ rule nanomonsv_merge:
     output:
         "nanomonsv/{tumor}.nanomonsv.result.merged.txt"
     message:
-        "--- Running NanoMonSV merge for {wildcards.tumor}"
+        "--- Running nanomonsv merge for {wildcards.tumor}"
     params:
         tumor="{tumor}"
     threads:

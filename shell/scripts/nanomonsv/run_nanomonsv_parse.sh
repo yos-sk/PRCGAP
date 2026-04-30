@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --mem-per-cpu=16G
+#SBATCH -c 8
+#SBATCH -p mjobs,rjobs
+
+set -xv
+set -o errexit
+set -o nounset
+set -o pipefail
+
+SAMPLE=$1
+INPUT_BAM=$2
+OUTPUT_DIR=$3
+
+
+singularity exec \
+    ./images/nanomonsv-v0.8.0.sif \
+    bash ./scripts/nanomonsv/nanomonsv_parse.sh \
+    ${SAMPLE} \
+    ${INPUT_BAM} \
+    ${OUTPUT_DIR}
+    

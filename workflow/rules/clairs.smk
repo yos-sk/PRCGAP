@@ -196,7 +196,7 @@ rule clairs_postprocess_haplotype:
         bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
         realign_bam="clairs_post/{tumor}/realign/realign.bam",
         pileup="clairs_post/{tumor}/pileup/{tumor}_pileup.bed.gz",
-        kmer_ratio=lambda wc: "bam_refiner/{}/hifi/{}_kmer_ratio.txt".format(wc.tumor, wc.tumor)
+        kmer_ratio=lambda wc: "bam_refiner/{}/hifi/{}_kmer_ratio.txt".format(wc.tumor, wc.tumor),
     output:
         haplotyped="clairs_post/{tumor}/{tumor}.haplotyped.bed",
     message:

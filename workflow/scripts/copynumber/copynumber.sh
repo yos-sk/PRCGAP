@@ -36,7 +36,7 @@ do
         INPUT_FASTA=${ASSEMBLY_HAP2}
         SATELLITE=${HAP2_SATELLITE}
     fi
-        
+
     bedtools maskfasta \
         -fi ${INPUT_FASTA} \
         -bed ${SATELLITE} \
@@ -50,8 +50,20 @@ do
     python3 "${SCRIPT_DIR}"/copynumber/make_reference_table.py \
         -i ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.rmsec.paf \
     > ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table
+done
 
-    # 4. Calculate depth
+# 4. Postprocess sex chromosomes for male samples
+if [ ${SEX} = "male" ]; then
+    python3 "${SCRIPT_DIR}"/copynumber/postprocess_sex_chrom.py \
+        --hap1 ${OUTPUT_DIR}/${NORMAL}.hap1.ref.table \
+        --hap2 ${OUTPUT_DIR}/${NORMAL}.hap2.ref.table \
+        --out1 ${OUTPUT_DIR}/${NORMAL}.hap1.ref.table \
+        --out2 ${OUTPUT_DIR}/${NORMAL}.hap2.ref.table
+fi
+
+# 5. Calculate depth
+for hap in hap1 hap2
+do
     awk '{print $1 "\t" $2 "\t" $3}' ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${WORK_DIR}/${NORMAL}.${hap}.ref.bed
     samtools depth -@ ${THREAD} -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${TUMOR_BAM} -Q 40 | awk '{print $1 "\t" $2 - 1 "\t" $2 "\t" $3}' >  ${WORK_DIR}/${TUMOR}.${hap}.depth.bed
     samtools depth -@ ${THREAD} -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${NORMAL_BAM} -Q 40 | awk '{print $1 "\t" $2 - 1 "\t" $2 "\t" $3}' >  ${WORK_DIR}/${NORMAL}.${hap}.depth.bed

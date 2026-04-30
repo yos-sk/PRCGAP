@@ -14,39 +14,57 @@ tumors = samples.loc[samples["type"] == "tumor", "sample"].tolist()
 normals = samples.loc[samples["type"] == "normal", "sample"].tolist()
 
 # validate sample sheet and config file
-validate(samples, schema="../../config/schemas/samples.schema.yaml")
-validate(config, schema="../../config/schemas/config.schema.yaml")
-
-# Define analysis steps based on config flags
-# Default flags if not specified
-steps = {
-    "bam_refiner": config.get("steps", {}).get("bam_refiner", True),
-    "methylation": config.get("steps", {}).get("methylation", False),
-    "copynumber": config.get("steps", {}).get("copynumber", False),
-    "nanomonsv_parse": config.get("steps", {}).get("nanomonsv_parse", False),
-    "nanomonsv_get": config.get("steps", {}).get("nanomonsv_get", False),
-    "nanomonsv_postprocess": config.get("steps", {}).get("nanomonsv_postprocess", False),
-    "nanomonsv_insert_classify": config.get("steps", {}).get("nanomonsv_insert_classify", False),
-    "nanomonsv_connect": config.get("steps", {}).get("nanomonsv_connect", False),
-    "nanomonsv_merge": config.get("steps", {}).get("nanomonsv_merge", False),
-    "clairs": config.get("steps", {}).get("clairs", False),
-    "deepsomatic": config.get("steps", {}).get("deepsomatic", False),
-    "clairs_postprocess": config.get("steps", {}).get("clairs_postprocess", False),
-    "deepsomatic_postprocess": config.get("steps", {}).get("deepsomatic_postprocess", False),
-}
+validate(samples, schema="../schemas/samples.schema.yaml")
+validate(config, schema="../schemas/config.schema.yaml")
 
 # Helper functions for getting sample metadata
 def get_sample_hifi(sample):
+    """Return comma-separated HiFi file paths for a sample."""
     return samples.loc[sample, "hifi"]
 
 def get_sample_ont(sample):
+    """Return comma-separated ONT file paths for a sample."""
     return samples.loc[sample, "ont"]
+
+def get_sample_files_list(sample, seqtype):
+    """Return list of individual file paths for a sample and seqtype.
+    Handles comma-separated paths in the sample sheet.
+    """
+    raw = samples.loc[sample, seqtype]
+    return [f.strip() for f in raw.split(",")]
+
+def has_multiple_inputs(sample, seqtype):
+    """Check if a sample has multiple input files for a given seqtype."""
+    return len(get_sample_files_list(sample, seqtype)) > 1
+
+def get_first_input_extension(sample, seqtype):
+    """Get the file extension of the first input file."""
+    files = get_sample_files_list(sample, seqtype)
+    return files[0].split(".")[-1].lower()
 
 def get_sample_assembly_hap1(sample):
     return samples.loc[sample, "assembly_hap1"]
 
 def get_sample_assembly_hap2(sample):
     return samples.loc[sample, "assembly_hap2"]
+
+def get_kmer_source(sample):
+    """Return the canonical sample name whose kmer outputs `sample` should use.
+
+    Tumor and normal frequently share an assembly fasta in this workflow, so
+    haplotype-specific k-mer extraction can be deduplicated. Among all samples
+    that share the same (assembly_hap1, assembly_hap2) pair, the lexicographically
+    smallest sample name is the canonical kmer source. Other samples reference
+    that sample's bam_refiner/{kmer_src}/kmer/ outputs, and Snakemake's DAG
+    only fires bam_refiner_kmer for the canonical samples.
+    """
+    hap1 = samples.loc[sample, "assembly_hap1"]
+    hap2 = samples.loc[sample, "assembly_hap2"]
+    candidates = samples[
+        (samples["assembly_hap1"] == hap1) & (samples["assembly_hap2"] == hap2)
+    ].index.tolist()
+    return min(candidates)
+
 
 def get_paired_normal(tumor):
     """Get the paired normal sample for a tumor sample.

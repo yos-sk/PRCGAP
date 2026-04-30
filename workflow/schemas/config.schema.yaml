@@ -1,0 +1,212 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+description: main configuration schema for the workflow
+properties:
+  output_dir:
+    type: string
+    description: output directory path (used with snakemake --directory)
+
+  samplesheet:
+    type: string
+    description: path to sample-sheet TSV file
+
+  reference:
+    type: string
+    description: path to reference genome
+
+  singularity_images:
+    type: object
+    properties:
+      bam_refiner:
+        type: string
+        description: path to singularity image of bam_refiner
+      methylation:
+        type: string
+        description: path to singularity image of tools for methylation calling
+      copynumber:
+        type: string
+        description: path to singularity image of tools for copy number calling
+      nanomonsv:
+        type: string
+        description: path to singularity image of tools for SV calling (parse, get, insert_classify, connect, merge)
+      nanomonsv_postprocess:
+        type: string
+        description: path to singularity image of NanoMonSV postprocessing
+      clairs:
+        type: string
+        description: path to singularity image of ClairS variant caller
+      deepsomatic:
+        type: string
+        description: path to singularity image of DeepSomatic variant caller
+      point_mutation_postprocess:
+        type: string
+        description: path to singularity image of tools for point mutation postprocessing
+
+  resources:
+    type: object
+    description: resource configuration for each tool (threads and mem_mb)
+    additionalProperties:
+      type: object
+      properties:
+        threads:
+          type: number
+          description: number of threads for this tool
+        mem_mb:
+          type: number
+          description: memory per job in MB for this tool
+    properties:
+      bam_refiner_kmer:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 8)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      bam_refiner:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 64000)
+      methylation:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 8)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      copynumber:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 8)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      nanomonsv_parse:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      nanomonsv_get:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 8)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      nanomonsv_postprocess:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      nanomonsv_insert_classify:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      nanomonsv_connect:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      nanomonsv_merge:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 2)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 8000)
+      clairs:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 64000)
+      deepsomatic:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 64000)
+      clairs_postprocess:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+      deepsomatic_postprocess:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
+
+  hap1_satellite:
+    type: string
+    description: path to satellite regions for haplotype 1
+
+  hap2_satellite:
+    type: string
+    description: path to satellite regions for haplotype 2
+
+  sex:
+    type: string
+    description: sex of the sample (female or male)
+    enum: ["female", "male"]
+
+  simple_repeat:
+    type: string
+    description: path to simple repeat regions file
+
+  gtf_file:
+    type: string
+    description: path to GTF annotation file
+
+  line1_bed:
+    type: string
+    description: path to LINE1 element BED file
+
+required:
+  - samplesheet
+  - reference
+  - singularity_images
