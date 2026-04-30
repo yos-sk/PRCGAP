@@ -72,6 +72,15 @@ properties:
           mem_mb:
             type: number
             description: memory per job in MB (default 64000)
+      assembly_bwa_index:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 1)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 16000)
       methylation:
         type: object
         properties:
