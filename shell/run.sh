@@ -24,32 +24,9 @@ if [ ${BAM_REFINER} = "TRUE" ]; then
             ${INPUT} \
             ${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi/output \
             hifi
-    done
+    done 
 
-    # 1-2. bam_refiner_hifi for methylation (optional) 
-    if [ ${TUMOR_METHYLATION_HIFI} != ${TUMOR_HIFI} ]; then
-        sbatch -J ${TUMOR}_${ASSEMBLER}_bam_refiner_methylation_hifi -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_bam_refiner_methylation_hifi.err -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_bam_refiner_methylation_hifi.out \
-            scripts/bam_refiner/run_bam_refiner.sh \
-            ${TUMOR} \
-            ${ASSEMBLY_HAP1} \
-            ${ASSEMBLY_HAP2} \
-            ${TUMOR_METHYLATION_HIFI}\
-            ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/methylation_hifi/output \
-            hifi
-    fi    
-
-    if [ ${CONTROL_METHYLATION_HIFI} != ${CONTROL_HIFI} ]; then
-        sbatch -J ${CONTROL}_${ASSEMBLER}_bam_refiner_methylation_hifi -e log/${DATE}/${OUTPUT}/${CONTROL}_${ASSEMBLER}_bam_refiner_methylation_hifi.err -o log/${DATE}/${OUTPUT}/${CONTROL}_${ASSEMBLER}_bam_refiner_methylation_hifi.out \
-            scripts/bam_refiner/run_bam_refiner.sh \
-            ${CONTROL} \
-            ${ASSEMBLY_HAP1} \
-            ${ASSEMBLY_HAP2} \
-            ${CONTROL_METHYLATION_HIFI} \
-            ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/methylation_hifi/output \
-            hifi
-    fi    
-
-    # 1-3. bam_refiner_ont
+    # 1-2. bam_refiner_ont
     for SAMPLE in ${TUMOR} ${CONTROL}; do
         if [ ${SAMPLE} = ${TUMOR} ]; then
             INPUT=${TUMOR_ONT}
@@ -290,22 +267,26 @@ fi
 
 # 7. nanomonsv insert_classify
 if [ ${NANOMONSV_INSERT_CLASSIFY} = "TRUE" ]; then
-    if [ ${NANOMONSV_GET} = "TRUE" ]; then
-        NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_get_hifi) | cut -d ' ' -f 2)
-        sbatch --dependency=afterok:${NANOMONSV_GET_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log \
+    if [ ${NANOMONSV_POST} = "TRUE" ]; then
+        NANOMONSV_POST_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_postprocess_hifi) | cut -d ' ' -f 2)
+        sbatch --dependency=afterok:${NANOMONSV_POST_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_hifi.log \
             scripts/nanomonsv/run_nanomonsv_insert_classify.sh \
                 ${OUTPUT_PREFIX}/nanomonsv/hifi/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
                 ${OUTPUT_PREFIX}/nanomonsv/hifi \
                 ${TUMOR}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+                ${ASSEMBLY_HAP1} \
+                ${ASSEMBLY_HAP2} \
                 ${GTF_FILE} \
                 ${LINE1_BED} 
 
-        NANOMONSV_GET_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_get_ont) | cut -d ' ' -f 2)
-        sbatch --dependency=afterok:${NANOMONSV_GET_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log \
+        NANOMONSV_POST_JOBID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_nanomonsv_postprocess_ont) | cut -d ' ' -f 2)
+        sbatch --dependency=afterok:${NANOMONSV_POST_JOBID} -J ${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_nanomonsv_insert_classify_ont.log \
             scripts/nanomonsv/run_nanomonsv_insert_classify.sh \
                 ${OUTPUT_PREFIX}/nanomonsv/ont/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
                 ${OUTPUT_PREFIX}/nanomonsv/ont \
                 ${TUMOR}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+                ${ASSEMBLY_HAP1} \
+                ${ASSEMBLY_HAP2} \
                 ${GTF_FILE} \
                 ${LINE1_BED} 
     else
@@ -314,6 +295,8 @@ if [ ${NANOMONSV_INSERT_CLASSIFY} = "TRUE" ]; then
                 ${OUTPUT_PREFIX}/nanomonsv/hifi/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
                 ${OUTPUT_PREFIX}/nanomonsv/hifi \
                 ${TUMOR}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+                ${ASSEMBLY_HAP1} \
+                ${ASSEMBLY_HAP2} \
                 ${GTF_FILE} \
                 ${LINE1_BED} 
 
@@ -322,6 +305,8 @@ if [ ${NANOMONSV_INSERT_CLASSIFY} = "TRUE" ]; then
                 ${OUTPUT_PREFIX}/nanomonsv/ont/${TUMOR}.nanomonsv.new_result.sv_typed.txt \
                 ${OUTPUT_PREFIX}/nanomonsv/ont \
                 ${TUMOR}.nanomonsv.new_result.sv_typed.insert_classified.txt \
+                ${ASSEMBLY_HAP1} \
+                ${ASSEMBLY_HAP2} \
                 ${GTF_FILE} \
                 ${LINE1_BED} 
     fi
@@ -440,7 +425,7 @@ if [ ${CLAIRS_POST} = "TRUE" ]; then
                 ${OUTPUT_PREFIX}/clairs_post/${TUMOR} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
                 ClairS \
-                ./images/mutation_postprocess-v0.1.2b.sif
+                ./images/mutation_postprocess-v0.1.3b.sif
     else
         sbatch -J ${TUMOR}_${ASSEMBLER}_clairs_postprocess -e ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_clairs_postprocess.err -o ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_clairs_postprocess.out \
             scripts/mutation_postprocess/run_postprocess.sh \
@@ -451,7 +436,7 @@ if [ ${CLAIRS_POST} = "TRUE" ]; then
                 ${OUTPUT_PREFIX}/clairs_post/${TUMOR} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
                 ClairS \
-                ./images/mutation_postprocess-v0.1.2b.sif
+                ./images/mutation_postprocess-v0.1.3b.sif
     fi
 fi
 
@@ -468,7 +453,7 @@ if [ ${DEEPSOMATIC_POST} = "TRUE" ]; then
                 ${OUTPUT_PREFIX}/deepsomatic_post/${TUMOR} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
                 DeepSomatic \
-                ./images/mutation_postprocess-v0.1.2b.sif
+                ./images/mutation_postprocess-v0.1.3b.sif
     else
         sbatch -J ${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess -e ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess.err -o ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess.out \
             scripts/mutation_postprocess/run_postprocess.sh \
@@ -479,6 +464,6 @@ if [ ${DEEPSOMATIC_POST} = "TRUE" ]; then
                 ${OUTPUT_PREFIX}/deepsomatic_post/${TUMOR} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
                 DeepSomatic \
-                ./images/mutation_postprocess-v0.1.2b.sif
+                ./images/mutation_postprocess-v0.1.3b.sif
     fi
 fi

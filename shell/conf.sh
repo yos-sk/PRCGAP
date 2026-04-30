@@ -20,9 +20,6 @@ CONTROL_HIFI=
 TUMOR_ONT=
 CONTROL_ONT=
 
-TUMOR_METHYLATION_HIFI=
-CONTROL_METHYLATION_HIFI=
-
 ### Rerefence genome and annotation files ###
 REFERENCE=
 
