@@ -1,4 +1,4 @@
-# PRCGAP - Complete Cancer Genome Analysis Pipeline
+# PRCGAP - Personalized Reference genome-based Cancer Genome Analysis Pipeline
 
 Snakemake-based workflow for comprehensive analysis of complete cancer genomes using long-read sequencing data (PacBio HiFi and Oxford Nanopore).
 
