@@ -36,11 +36,15 @@ _RESOURCE_DEFAULTS = [
     ("clairs", 16, 128000),
     ("deepsomatic", 16, 128000),
     ("clairs_postprocess", 1, 32000),
+    ("clairs_postprocess_split", 1, 32000),
     ("clairs_postprocess_realign", 16, 128000),
     ("clairs_postprocess_pileup", 6, 240000),
+    ("clairs_postprocess_haplotype", 4, 64000),
     ("deepsomatic_postprocess", 1, 32000),
+    ("deepsomatic_postprocess_split", 1, 32000),
     ("deepsomatic_postprocess_realign", 16, 128000),
     ("deepsomatic_postprocess_pileup", 6, 240000),
+    ("deepsomatic_postprocess_haplotype", 4, 64000),
 ]
 
 

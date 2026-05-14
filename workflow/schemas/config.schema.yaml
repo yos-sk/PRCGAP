@@ -180,6 +180,42 @@ properties:
           mem_mb:
             type: number
             description: memory per job in MB (default 16000)
+      clairs_postprocess_split:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 1)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      clairs_postprocess_realign:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 128000)
+      clairs_postprocess_pileup:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 6)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 240000)
+      clairs_postprocess_haplotype:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 64000)
       deepsomatic_postprocess:
         type: object
         properties:
@@ -189,6 +225,42 @@ properties:
           mem_mb:
             type: number
             description: memory per job in MB (default 16000)
+      deepsomatic_postprocess_split:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 1)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      deepsomatic_postprocess_realign:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 128000)
+      deepsomatic_postprocess_pileup:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 6)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 240000)
+      deepsomatic_postprocess_haplotype:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 4)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 64000)
 
   hap1_satellite:
     type: string
