@@ -37,7 +37,6 @@ Annotation steps each consume an external resource file. **All keys are optional
 
 | config key | CLI flag | Used by |
 |---|---|---|
-| `gtf_file` | `--gtf-file` | nanomonsv insert_classify (liftoff GTF) |
 | `gff_file` | `--gff-file` | SV / SNV / INDEL gene annotation (tabix-indexed liftoff GFF) |
 | `chain_to_grch38` | `--chain-to-grch38` | SV / SNV / INDEL liftover to GRCh38 |
 | `chain_to_chm13` | `--chain-to-chm13` | SV / SNV / INDEL liftover to CHM13 |
