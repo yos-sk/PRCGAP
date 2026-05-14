@@ -9,9 +9,11 @@ properties:
     type: string
     description: path to sample-sheet TSV file
 
-  reference:
+  chm13_fasta:
     type: string
-    description: path to reference genome
+    description: |
+      path to the CHM13 reference genome FASTA. Used by `copynumber.smk`
+      and by the INDEL `liftvcf_indel_chm13` rule (transanno `--query`).
 
   singularity_images:
     type: object
@@ -40,6 +42,12 @@ properties:
       point_mutation_postprocess:
         type: string
         description: path to singularity image of tools for point mutation postprocessing
+      annotation:
+        type: string
+        description: |
+          path to singularity image bundling all annotation tooling
+          (pysam, samtools, coordconv, transanno). Used by every rule
+          under workflow/rules/annotate_sv.smk and annotate_mut.smk.
 
   resources:
     type: object
@@ -281,13 +289,63 @@ properties:
 
   gtf_file:
     type: string
-    description: path to GTF annotation file
+    description: |
+      path to GTF annotation file. Consumed by nanomonsv `insert_classify.py`
+      (which only accepts `.gtf` / `.gtf.gz`). For SV / SNV / INDEL gene
+      annotation use `gff_file` instead.
+  gff_file:
+    type: string
+    description: |
+      path to tabix-indexed liftoff GFF (.gff.gz + .tbi). Consumed by
+      `annotate_sv` and `annotate_mut` for gene annotation. Must already be
+      bgzipped and tabix-indexed (`tabix -p gff`).
 
   line1_bed:
     type: string
     description: path to LINE1 element BED file
 
+  # ---- annotation resources (all optional; leave empty to skip the step) ----
+  chain_to_grch38:
+    type: string
+    description: chain file from personalized assembly to GRCh38 (SV liftover flag)
+  chain_to_chm13:
+    type: string
+    description: chain file from personalized assembly to CHM13 (SV liftover flag)
+  repeat_masker_bed:
+    type: string
+    description: tabix-indexed RepeatMasker BED file
+  segdup_bed:
+    type: string
+    description: tabix-indexed segmental duplication BED file
+  censat_bed:
+    type: string
+    description: tabix-indexed centromere/satellite BED file
+  misassembly_hap1_bed:
+    type: string
+    description: hap1 misassembly BED file (optional)
+  misassembly_hap2_bed:
+    type: string
+    description: hap2 misassembly BED file (optional)
+  cancer_gene_census_tsv:
+    type: string
+    description: Cancer Gene Census TSV file
+  cmrg_gene_tsv:
+    type: string
+    description: CMRG gene list TSV (SNV/INDEL gene annotation)
+  gencode_transcript_bed:
+    type: string
+    description: GENCODE transcript BED.gz (SNV/INDEL gene annotation)
+  gnomad_bed:
+    type: string
+    description: gnomAD SV BED.gz (optional SV annotation; requires chain_to_grch38)
+  gnomad_vcf:
+    type: string
+    description: gnomAD SNV/INDEL VCF.gz tabix-indexed (optional SNV/INDEL annotation; requires chain_to_grch38)
+  grch38_fasta:
+    type: string
+    description: GRCh38 reference FASTA (used as transanno `--query` for INDEL liftover)
+
 required:
   - samplesheet
-  - reference
+  - chm13_fasta
   - singularity_images

@@ -8,7 +8,7 @@ rule copynumber:
         normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
-        reference=config.get("reference", ""),
+        reference=config.get("chm13_fasta", ""),
     output:
         directory("copynumber/{tumor}/output")
     message:

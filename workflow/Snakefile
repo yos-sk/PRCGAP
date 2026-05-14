@@ -57,7 +57,7 @@ def get_all_targets():
         seqtype=["hifi", "ont"]
     ))
     targets.extend(expand(
-        "nanomonsv/{seqtype}/{tumor}.nanomonsv.new_result.sv_typed.connected.txt",
+        "nanomonsv/{seqtype}/{tumor}.nanomonsv.connect.txt",
         tumor=tumors,
         seqtype=["hifi", "ont"]
     ))
@@ -66,6 +66,26 @@ def get_all_targets():
     # point-mutation postprocess leaves
     targets.extend(expand("clairs_post/{tumor}/{tumor}.haplotyped.bed", tumor=tumors))
     targets.extend(expand("deepsomatic_post/{tumor}/{tumor}.haplotyped.bed", tumor=tumors))
+
+    # SV annotation + reclassification
+    targets.extend(expand(
+        "annotate_sv/{tumor}/{seqtype}/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
+        tumor=tumors,
+        seqtype=["hifi", "ont"],
+    ))
+    targets.extend(expand(
+        "annotate_sv/{tumor}/{tumor}.{seqtype}.PRCGAP.nanomonsv_results.reclassified.txt",
+        tumor=tumors,
+        seqtype=["hifi", "ont"],
+    ))
+
+    # Point-mutation annotation (per tool: clairs, deepsomatic; per mode: snv, indel)
+    targets.extend(expand(
+        "annotate_{mode}/{tumor}/{tool}/{tumor}.{tool}.{mode}.annotated.txt",
+        tumor=tumors,
+        tool=["clairs", "deepsomatic"],
+        mode=["snv", "indel"],
+    ))
 
     return targets
 

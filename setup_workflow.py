@@ -45,6 +45,13 @@ _RESOURCE_DEFAULTS = [
     ("deepsomatic_postprocess_realign", 16, 128000),
     ("deepsomatic_postprocess_pileup", 6, 240000),
     ("deepsomatic_postprocess_haplotype", 4, 64000),
+    ("prep_sv", 1, 8000),
+    ("coordconv_sv", 1, 8000),
+    ("annotate_sv", 1, 16000),
+    ("reclassify_sv", 1, 16000),
+    ("prep_mut", 1, 8000),
+    ("coordconv_mut", 1, 8000),
+    ("annotate_mut", 1, 16000),
 ]
 
 
@@ -115,7 +122,7 @@ def create_config(args):
     config = {
         "output_dir": _abs(args.output_dir),
         "samplesheet": _abs(args.samplesheet),
-        "reference": _abs(args.reference),
+        "chm13_fasta": _abs(args.chm13_fasta),
         "singularity_images": {
             "bam_refiner": _abs(_image_path(args.bam_refiner_image, args.images_dir, "bam_refiner")),
             "methylation": _abs(_image_path(args.methylation_image, args.images_dir, "methylation")),
@@ -125,6 +132,7 @@ def create_config(args):
             "clairs": _abs(_image_path(args.clairs_image, args.images_dir, "clairs")),
             "deepsomatic": _abs(_image_path(args.deepsomatic_image, args.images_dir, "deepsomatic")),
             "point_mutation_postprocess": _abs(_image_path(args.point_mutation_postprocess_image, args.images_dir, "point_mutation_postprocess")),
+            "annotation": _abs(_image_path(args.annotation_image, args.images_dir, "annotation")),
         },
         "resources": {
             name: {
@@ -138,7 +146,22 @@ def create_config(args):
         "sex": args.sex,
         "simple_repeat": _abs(args.simple_repeat) or "",
         "gtf_file": _abs(args.gtf_file) or "",
+        "gff_file": _abs(args.gff_file) or "",
         "line1_bed": _abs(args.line1_bed) or "",
+        # ---- annotation resources (optional) ----
+        "chain_to_grch38": _abs(args.chain_to_grch38) or "",
+        "chain_to_chm13": _abs(args.chain_to_chm13) or "",
+        "repeat_masker_bed": _abs(args.repeat_masker_bed) or "",
+        "segdup_bed": _abs(args.segdup_bed) or "",
+        "censat_bed": _abs(args.censat_bed) or "",
+        "misassembly_hap1_bed": _abs(args.misassembly_hap1_bed) or "",
+        "misassembly_hap2_bed": _abs(args.misassembly_hap2_bed) or "",
+        "cancer_gene_census_tsv": _abs(args.cancer_gene_census_tsv) or "",
+        "cmrg_gene_tsv": _abs(args.cmrg_gene_tsv) or "",
+        "gencode_transcript_bed": _abs(args.gencode_transcript_bed) or "",
+        "gnomad_bed": _abs(args.gnomad_bed) or "",
+        "gnomad_vcf": _abs(args.gnomad_vcf) or "",
+        "grch38_fasta": _abs(args.grch38_fasta) or "",
     }
     return config
 
@@ -213,13 +236,13 @@ Examples:
   # 2. Local execution
   python setup_workflow.py \\
     --samplesheet samples.tsv \\
-    --reference ref.fa \\
+    --chm13-fasta chm13.fa \\
     --jobs 8
 
   # 3. SLURM cluster via profile
   python setup_workflow.py \\
     --samplesheet samples.tsv \\
-    --reference ref.fa \\
+    --chm13-fasta chm13.fa \\
     --profile profile/slurm
 
   # Override a single image path:
@@ -229,7 +252,9 @@ Examples:
 
     # ---------- Required I/O ----------
     parser.add_argument("--samplesheet", required=True, help="sample sheet TSV")
-    parser.add_argument("--reference", required=True, help="reference genome FASTA")
+    parser.add_argument("--chm13-fasta", required=True,
+                        help="CHM13 reference FASTA (consumed by copynumber and by the "
+                             "INDEL liftvcf_indel_chm13 rule as transanno --query)")
 
     # ---------- Singularity images ----------
     # Defaults assume Dockerfile/pull_images.sh has populated ./images/.
@@ -245,6 +270,10 @@ Examples:
     parser.add_argument("--deepsomatic-image", default=None, help="DeepSomatic image (default: <images-dir>/deepsomatic.sif)")
     parser.add_argument("--point-mutation-postprocess-image", default=None,
                         help="mutation postprocess image (default: <images-dir>/point_mutation_postprocess.sif)")
+    parser.add_argument("--annotation-image", default=None,
+                        help="annotation image bundling pysam, samtools, coordconv, "
+                             "and transanno — used by every SV/SNV/INDEL annotation "
+                             "rule (default: <images-dir>/annotation.sif)")
 
     # ---------- Resources (per-module overrides) ----------
     res_group = parser.add_argument_group(
@@ -270,8 +299,44 @@ Examples:
     parser.add_argument("--hap1-satellite", default="")
     parser.add_argument("--hap2-satellite", default="")
     parser.add_argument("--simple-repeat", default="")
-    parser.add_argument("--gtf-file", default="")
+    parser.add_argument("--gtf-file", default="",
+                        help="liftoff GTF (.gtf / .gtf.gz). Consumed by nanomonsv "
+                             "insert_classify only.")
     parser.add_argument("--line1-bed", default="")
+
+    # ---------- annotation resources (all optional) ----------
+    ann_group = parser.add_argument_group(
+        "Annotation resources",
+        "All optional; leave empty to skip the corresponding annotation step.",
+    )
+    ann_group.add_argument("--gff-file", default="",
+                           help="tabix-indexed liftoff GFF (.gff.gz + .tbi). Used by SV / SNV / INDEL gene annotation.")
+    ann_group.add_argument("--chain-to-grch38", default="",
+                           help="chain file from personalized assembly to GRCh38 (SV liftover flag)")
+    ann_group.add_argument("--chain-to-chm13", default="",
+                           help="chain file from personalized assembly to CHM13 (SV liftover flag)")
+    ann_group.add_argument("--repeat-masker-bed", default="",
+                           help="tabix-indexed RepeatMasker BED.gz")
+    ann_group.add_argument("--segdup-bed", default="",
+                           help="tabix-indexed segdup BED.gz")
+    ann_group.add_argument("--censat-bed", default="",
+                           help="tabix-indexed centromere/satellite BED.gz")
+    ann_group.add_argument("--misassembly-hap1-bed", default="",
+                           help="hap1 misassembly BED")
+    ann_group.add_argument("--misassembly-hap2-bed", default="",
+                           help="hap2 misassembly BED")
+    ann_group.add_argument("--cancer-gene-census-tsv", default="",
+                           help="Cancer Gene Census TSV")
+    ann_group.add_argument("--cmrg-gene-tsv", default="",
+                           help="CMRG gene list TSV (SNV/INDEL gene annotation)")
+    ann_group.add_argument("--gencode-transcript-bed", default="",
+                           help="GENCODE transcript BED.gz (SNV/INDEL gene annotation)")
+    ann_group.add_argument("--gnomad-bed", default="",
+                           help="gnomAD SV BED.gz (requires --chain-to-grch38)")
+    ann_group.add_argument("--gnomad-vcf", default="",
+                           help="gnomAD SNV/INDEL VCF.gz tabix-indexed (requires --chain-to-grch38)")
+    ann_group.add_argument("--grch38-fasta", default="",
+                           help="GRCh38 reference FASTA (used as transanno --query for INDEL liftover)")
 
     # ---------- Output / runner ----------
     parser.add_argument("--output-dir", default="results",

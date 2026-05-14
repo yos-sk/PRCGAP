@@ -339,7 +339,7 @@ rule nanomonsv_connect_hifi:
         result="nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt",
         supporting="nanomonsv/hifi/{tumor}.nanomonsv.supporting_read.txt"
     output:
-        "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.connected.txt"
+        "nanomonsv/hifi/{tumor}.nanomonsv.connect.txt"
     message:
         "--- Running nanomonsv connect for {wildcards.tumor} HiFi data"
     params:
@@ -358,9 +358,8 @@ rule nanomonsv_connect_hifi:
         /bin/bash {SCRIPTS_DIR}/nanomonsv/nanomonsv_connect.sh \
             {input.result} \
             {input.supporting} \
-            {params.output_dir} \
+            {params.output_dir}/{params.tumor} \
             {SCRIPTS_DIR} &> {log}
-        touch {output}
         """
 
 rule nanomonsv_connect_ont:
@@ -368,7 +367,7 @@ rule nanomonsv_connect_ont:
         result="nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.txt",
         supporting="nanomonsv/ont/{tumor}.nanomonsv.supporting_read.txt"
     output:
-        "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.connected.txt"
+        "nanomonsv/ont/{tumor}.nanomonsv.connect.txt"
     message:
         "--- Running nanomonsv connect for {wildcards.tumor} ONT data"
     params:
@@ -387,9 +386,8 @@ rule nanomonsv_connect_ont:
         /bin/bash {SCRIPTS_DIR}/nanomonsv/nanomonsv_connect.sh \
             {input.result} \
             {input.supporting} \
-            {params.output_dir} \
+            {params.output_dir}/{params.tumor} \
             {SCRIPTS_DIR} &> {log}
-        touch {output}
         """
 
 # ====================================================================
