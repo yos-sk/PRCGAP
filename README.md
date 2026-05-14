@@ -1,6 +1,6 @@
 # PRCGAP - Personalized Reference genome-based Cancer Genome Analysis Pipeline
 
-Snakemake-based workflow for comprehensive analysis of complete cancer genomes using long-read sequencing data (PacBio HiFi and Oxford Nanopore).
+Snakemake-based workflow for comprehensive analysis of cancer genomes using long-read sequencing data (PacBio HiFi and Oxford Nanopore) based on personalized reference genome.
 
 > 📖 [**Full documentation:**](https://yos-sk.github.io/prcgapdoc)
 >
