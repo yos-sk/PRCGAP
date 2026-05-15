@@ -901,6 +901,9 @@ def main():
         os.remove(args.output_file + ".tmp.alignment.hap2.txt")
         os.remove(args.output_file + ".tmp.org.txt")
         os.remove(output_dir + "/" + "reference.fa")
+        reference_fai = output_dir + "/" + "reference.fa.fai"
+        if os.path.exists(reference_fai):
+            os.remove(reference_fai)
 
 
 if __name__ == "__main__":

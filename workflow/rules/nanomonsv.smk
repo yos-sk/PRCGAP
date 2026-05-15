@@ -222,20 +222,25 @@ rule nanomonsv_postprocess_ont:
 # ASSEMBLY BWA INDEX (shared by insert_classify hifi/ont)
 # ====================================================================
 #
-# bwa index writes .pac/.bwt/.sa next to the assembly fasta. If hifi and ont
-# insert_classify rules both invoke `bwa index` concurrently they corrupt
-# each other's intermediate files. Centralise indexing in a single rule and
-# make insert_classify depend on its marker output. We use the kmer-source
-# canonical sample pattern so each (hap1, hap2) pair is indexed only once.
+# bwa index writes .pac/.bwt/.sa next to the fasta it is given. To keep the
+# original assembly directory clean we symlink the haplotype fastas into
+# bwa_index/{sample}/ and run `bwa index` on the symlinks, so all index
+# artefacts land under the workflow output tree. Indexing is keyed on the
+# kmer-source canonical sample so each (hap1, hap2) pair is indexed once.
 
 rule assembly_bwa_index:
     input:
         hap1=lambda wc: samples.loc[wc.sample, "assembly_hap1"],
         hap2=lambda wc: samples.loc[wc.sample, "assembly_hap2"],
     output:
-        marker=touch("bwa_index/{sample}/.indexed")
+        hap1_fa="bwa_index/{sample}/hap1.fa",
+        hap2_fa="bwa_index/{sample}/hap2.fa",
+        hap1_sa="bwa_index/{sample}/hap1.fa.sa",
+        hap2_sa="bwa_index/{sample}/hap2.fa.sa",
     message:
         "--- Building bwa index for assembly of {wildcards.sample}"
+    params:
+        out_dir="bwa_index/{sample}",
     threads:
         get_threads("assembly_bwa_index", 1)
     resources:
@@ -246,11 +251,11 @@ rule assembly_bwa_index:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
         """
-        ( for asm in {input.hap1} {input.hap2}; do
-              if [ ! -e "${{asm}}.sa" ]; then
-                  bwa index "${{asm}}"
-              fi
-          done ) &> {log}
+        mkdir -p {params.out_dir}
+        ln -sf $(readlink -f {input.hap1}) {output.hap1_fa}
+        ln -sf $(readlink -f {input.hap2}) {output.hap2_fa}
+        ( bwa index {output.hap1_fa} && \
+          bwa index {output.hap2_fa} ) &> {log}
         """
 
 
@@ -261,9 +266,8 @@ rule assembly_bwa_index:
 rule nanomonsv_insert_classify_hifi:
     input:
         result="nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt",
-        assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
-        assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
-        bwa_index_done=lambda wc: "bwa_index/{}/.indexed".format(get_kmer_source(wc.tumor)),
+        assembly_hap1=lambda wc: "bwa_index/{}/hap1.fa".format(get_kmer_source(wc.tumor)),
+        assembly_hap2=lambda wc: "bwa_index/{}/hap2.fa".format(get_kmer_source(wc.tumor)),
     output:
         "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt"
     message:
@@ -297,9 +301,8 @@ rule nanomonsv_insert_classify_hifi:
 rule nanomonsv_insert_classify_ont:
     input:
         result="nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.txt",
-        assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
-        assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
-        bwa_index_done=lambda wc: "bwa_index/{}/.indexed".format(get_kmer_source(wc.tumor)),
+        assembly_hap1=lambda wc: "bwa_index/{}/hap1.fa".format(get_kmer_source(wc.tumor)),
+        assembly_hap2=lambda wc: "bwa_index/{}/hap2.fa".format(get_kmer_source(wc.tumor)),
     output:
         "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt"
     message:
