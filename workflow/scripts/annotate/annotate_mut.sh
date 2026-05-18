@@ -6,9 +6,11 @@
 #
 # Mirrors snv/annotate_snv.sh + indel/annotate_indel.sh from the
 # reference scripts. Coordinate liftover is bundled in by the upstream
-# coordconv (SNV) or transanno (INDEL) rules; the GRCh38/CHM13 *variant
-# comparison* steps (compare_current_reference / filter_diff_references
-# / check_homozygous) are intentionally skipped per proposal step 3.
+# coordconv (SNV) or transanno (INDEL) rules; check_homozygous is run
+# after the `other` step to collapse haplotype1/haplotype2 records that
+# lift to the same GRCh38/CHM13 site into `homozygous`. The remaining
+# variant-comparison step (filter_diff_references against GRCh38/CHM13
+# normal call sets) is still deferred.
 #
 # Required positional args:
 #   $1  SAMPLE       tumor sample name
@@ -127,7 +129,31 @@ NEXT="${WORK_DIR}/${PREFIX}.other.txt"
 ${ADD} other -i "${CUR}" -o "${NEXT}" -j "${OTHER_VCF}"
 CUR="${NEXT}"
 
-# 8. gnomAD (final step in reference snv/indel scripts). Skipped if no
+# 8. check_homozygous: collapse haplotype1/haplotype2 pairs that lift to
+#    the same GRCh38 / CHM13 site into `homozygous`. Two-pass when both
+#    chains are configured (GRCh38 update → CHM13 preserve, as in the
+#    reference scripts); one-pass when only one chain is configured;
+#    skipped when neither is configured (the lift columns are blank, so
+#    every row would falsely match).
+CHECK="${SCRIPT_DIR}/check_homozygous_${MODE}.py"
+if [ -n "${GRCH38_LIFT}" ] && [ -n "${CHM13_LIFT}" ]; then
+    NEXT="${WORK_DIR}/${PREFIX}.checked_GRCh38.txt"
+    python3 "${CHECK}" "${CUR}" GRCh38 update > "${NEXT}"
+    CUR="${NEXT}"
+    NEXT="${WORK_DIR}/${PREFIX}.checked.txt"
+    python3 "${CHECK}" "${CUR}" CHM13 preserve > "${NEXT}"
+    CUR="${NEXT}"
+elif [ -n "${GRCH38_LIFT}" ]; then
+    NEXT="${WORK_DIR}/${PREFIX}.checked.txt"
+    python3 "${CHECK}" "${CUR}" GRCh38 update > "${NEXT}"
+    CUR="${NEXT}"
+elif [ -n "${CHM13_LIFT}" ]; then
+    NEXT="${WORK_DIR}/${PREFIX}.checked.txt"
+    python3 "${CHECK}" "${CUR}" CHM13 update > "${NEXT}"
+    CUR="${NEXT}"
+fi
+
+# 9. gnomAD (final step in reference snv/indel scripts). Skipped if no
 #    gnomAD VCF configured or if no GRCh38 chain was configured (the
 #    annotation looks up GRCh38_pos which won't exist without liftover).
 if [ -n "${GNOMAD_VCF}" ] && [ -n "${GRCH38_LIFT}" ]; then

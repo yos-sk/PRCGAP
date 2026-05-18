@@ -4,9 +4,10 @@
 #
 # Mirrors the per-tool snv/annotate_snv.sh and indel/annotate_indel.sh
 # scripts under PRCGAP-paper/analysis/point_mutation_analysis/scripts/
-# annotation/, with the GRCh38/CHM13 *variant comparison* steps deferred
-# (`compare_current_reference`, `filter_diff_references`,
-# `check_homozygous`). Coordinate annotation is kept:
+# annotation/. The `compare_current_reference` /
+# `filter_diff_references` germline-comparison steps are still deferred;
+# `check_homozygous` (haplotype1/haplotype2 lift-collapse) is run inside
+# annotate_mut.sh. Coordinate annotation is kept:
 #
 #   prep_mut ──► coordconv (snv) ──┐
 #            └─► bed2vcf ─► transanno_liftvcf (indel) ──┐
@@ -14,7 +15,8 @@
 #                                                       │     (add_lift_coords →
 #                                                       │      gene → rmsk → size →
 #                                                       │      misa → cen → segdup →
-#                                                       │      other → gnomad)
+#                                                       │      other → check_homozygous
+#                                                       │      → gnomad)
 #
 # coordconv liftover is applied to SNV only — INDEL needs proper
 # VCF-aware liftover that transforms ref/alt alleles, which transanno
