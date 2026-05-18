@@ -1,75 +1,108 @@
-samplesheet: config/samples.tsv
-chm13_fasta: resource/reference/chm13v2.0_maskedY_rCRS.fa
+# ====================================================================
+# PRCGAP workflow configuration template
+# --------------------------------------------------------------------
+# Copy this file (e.g. to config/my_config.yaml) and fill in the
+# paths for your run. Alternatively, generate a populated config via:
+#
+#   python setup_workflow.py --samplesheet <tsv> --chm13-fasta <fa> ...
+#
+# Required keys: samplesheet, chm13_fasta, singularity_images.
+# All other path values may be left as "" to skip the corresponding
+# annotation / liftover step.
+# ====================================================================
+
+# ---- core I/O ----
+output_dir: ""
+samplesheet: ""
+chm13_fasta: ""
+
+# ---- singularity images (one .sif per tool) ----
 singularity_images:
-  bam_refiner: images/bam_refiner_v0.3.5b.sif
-  methylation: images/methylation-v0.0.1.sif
-  nanomonsv: images/nanomonsv-v0.8.0.sif
-  nanomonsv_postprocess: images/nanomonsv_postprocess-v0.2.5.sif
-  clairs: images/clairs-v0.4.0.sif
-  deepsomatic: images/DeepSomatic-v1.8.0.sif
-  point_mutation_postprocess: images/mutation_postprocess-v0.1.2.sif
-  annotation: images/annotation.sif
+  bam_refiner: ""
+  methylation: ""
+  copynumber: ""
+  nanomonsv: ""
+  nanomonsv_postprocess: ""
+  clairs: ""
+  deepsomatic: ""
+  point_mutation_postprocess: ""
+  annotation: ""
+
+# ---- per-rule resources (threads / mem_mb) ----
+# Numeric defaults shown below. Override per-rule as needed.
 resources:
   bam_refiner_kmer:
-    threads: 8
-    mem_mb: 32000
+    threads: 16
+    mem_mb: 128000
   bam_refiner:
     threads: 16
-    mem_mb: 64000
+    mem_mb: 128000
+  assembly_bwa_index:
+    threads: 1
+    mem_mb: 16000
   methylation:
-    threads: 8
-    mem_mb: 32000
+    threads: 16
+    mem_mb: 128000
   copynumber:
-    threads: 8
-    mem_mb: 32000
+    threads: 16
+    mem_mb: 128000
   nanomonsv_parse:
-    threads: 4
-    mem_mb: 16000
+    threads: 16
+    mem_mb: 128000
   nanomonsv_get:
-    threads: 8
-    mem_mb: 32000
+    threads: 16
+    mem_mb: 240000
   nanomonsv_postprocess:
-    threads: 4
-    mem_mb: 16000
+    threads: 1
+    mem_mb: 30000
   nanomonsv_insert_classify:
-    threads: 4
-    mem_mb: 16000
+    threads: 16
+    mem_mb: 128000
   nanomonsv_connect:
-    threads: 4
-    mem_mb: 16000
+    threads: 1
+    mem_mb: 30000
   nanomonsv_merge:
-    threads: 2
-    mem_mb: 8000
+    threads: 1
+    mem_mb: 30000
   clairs:
     threads: 16
-    mem_mb: 64000
+    mem_mb: 128000
   deepsomatic:
     threads: 16
-    mem_mb: 64000
+    mem_mb: 128000
   clairs_postprocess:
-    threads: 4
-    mem_mb: 16000
+    threads: 1
+    mem_mb: 32000
+  clairs_postprocess_split:
+    threads: 1
+    mem_mb: 32000
   clairs_postprocess_realign:
     threads: 16
-    mem_mb: 32000
+    mem_mb: 128000
   clairs_postprocess_pileup:
-    threads: 16
-    mem_mb: 32000
-  deepsomatic_postprocess:
+    threads: 6
+    mem_mb: 240000
+  clairs_postprocess_haplotype:
     threads: 4
-    mem_mb: 16000
+    mem_mb: 64000
+  deepsomatic_postprocess:
+    threads: 1
+    mem_mb: 32000
+  deepsomatic_postprocess_split:
+    threads: 1
+    mem_mb: 32000
   deepsomatic_postprocess_realign:
     threads: 16
-    mem_mb: 32000
+    mem_mb: 128000
   deepsomatic_postprocess_pileup:
-    threads: 16
-    mem_mb: 32000
+    threads: 6
+    mem_mb: 240000
+  deepsomatic_postprocess_haplotype:
+    threads: 4
+    mem_mb: 64000
   prep_sv:
     threads: 1
     mem_mb: 8000
-  gff_to_bed:
-    threads: 1
-    mem_mb: 4000
   coordconv_sv:
     threads: 1
     mem_mb: 8000
@@ -82,33 +115,23 @@ resources:
   prep_mut:
     threads: 1
     mem_mb: 8000
-  mut_vcf_index:
-    threads: 1
-    mem_mb: 4000
   coordconv_mut:
     threads: 1
     mem_mb: 8000
-  bed2vcf_mut:
-    threads: 1
-    mem_mb: 8000
-  indel_hap_reference:
-    threads: 1
-    mem_mb: 4000
-  liftvcf_mut:
-    threads: 1
-    mem_mb: 16000
   annotate_mut:
     threads: 1
     mem_mb: 16000
-hap1_satellite: resources/annotation/misha_BL2009.hap1_dna-brnn.bed.gz
-hap2_satellite: resources/annotation/misha_BL2009.hap2_dna-brnn.bed.gz
-sex: female
-simple_repeat: resources/annotation/misha_BL2009.simple_repeats.bed.gz
-gtf_file: resources/annotation/misha_BL2009.Ensembl_GRCh38.liftoff.gtf.gz
-gff_file: ""
-line1_bed: resources/annotation/misha_BL2009.LINE1.bed.gz
+
+# ---- sample-level params ----
+hap1_satellite: ""
+hap2_satellite: ""
+sex: female            # one of: "female" | "male"
+simple_repeat: ""
+gtf_file: ""           # liftoff GTF for nanomonsv insert_classify
+line1_bed: ""
 
 # ---- annotation resources (set to "" to skip the corresponding step) ----
+gff_file: ""                   # tabix-indexed liftoff GFF for SV/SNV/INDEL gene annotation
 chain_to_grch38: ""
 chain_to_chm13: ""
 repeat_masker_bed: ""
