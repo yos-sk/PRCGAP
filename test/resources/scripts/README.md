@@ -55,7 +55,3 @@ Python helpers `extract_cmrg_gene.py` and `proc_gencode_bed_mane_chr20.py` live 
 
 Manual step:
 - **Cancer Gene Census** must be downloaded after registering / logging in at [COSMIC](https://cancer.sanger.ac.uk/cosmic/download/cosmic/v104/cancergenecensus) and placed at `../annotation/cancer_gene_census.tsv`; the script intentionally skips it.
-
-## Companion scripts (run separately)
-
-- `extract_haplotypes.sh` — filters externally-prepared full-assembly annotation files (dna-brnn, RepeatMasker, Liftoff, CenSat, SegDup, misassembly, liftover chains) down to the two test contigs and writes them under `../annotation/`. Edit the `*_SRC` paths at the top before running.
