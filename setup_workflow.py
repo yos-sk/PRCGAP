@@ -157,7 +157,7 @@ def create_config(args):
         "misassembly_hap1_bed": _abs(args.misassembly_hap1_bed) or "",
         "misassembly_hap2_bed": _abs(args.misassembly_hap2_bed) or "",
         "cancer_gene_census_tsv": _abs(args.cancer_gene_census_tsv) or "",
-        "cmrg_gene_tsv": _abs(args.cmrg_gene_tsv) or "",
+        "cmrg_gene_tsv": _abs(args.cmrg_gene_list) or "",
         "gencode_transcript_bed": _abs(args.gencode_transcript_bed) or "",
         "gnomad_bed": _abs(args.gnomad_bed) or "",
         "gnomad_vcf": _abs(args.gnomad_vcf) or "",
@@ -327,8 +327,8 @@ Examples:
                            help="hap2 misassembly BED")
     ann_group.add_argument("--cancer-gene-census-tsv", default="",
                            help="Cancer Gene Census TSV")
-    ann_group.add_argument("--cmrg-gene-tsv", default="",
-                           help="CMRG gene list TSV (SNV/INDEL gene annotation)")
+    ann_group.add_argument("--cmrg-gene-list", default="",
+                           help="CMRG gene list (one HGNC gene symbol per line; SNV/INDEL gene annotation)")
     ann_group.add_argument("--gencode-transcript-bed", default="",
                            help="GENCODE transcript BED.gz (SNV/INDEL gene annotation)")
     ann_group.add_argument("--gnomad-bed", default="",

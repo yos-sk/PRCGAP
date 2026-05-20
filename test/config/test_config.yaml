@@ -1,0 +1,115 @@
+output_dir: ./test/HG008
+samplesheet: test/config/test_samples.tsv
+chm13_fasta: test/resources/reference/chm13v2.0_maskedY_rCRS.fa
+singularity_images:
+  bam_refiner: images/bam_refiner.sif
+  methylation: images/methylation.sif
+  copynumber: images/copynumber.sif
+  nanomonsv: images/nanomonsv.sif
+  nanomonsv_postprocess: images/nanomonsv_postprocess.sif
+  clairs: images/clairs.sif
+  deepsomatic: images/deepsomatic.sif
+  point_mutation_postprocess: images/point_mutation_postprocess.sif
+  annotation: images/annotation.sif
+resources:
+  bam_refiner_kmer:
+    threads: 8
+    mem_mb: 128000
+  bam_refiner:
+    threads: 8
+    mem_mb: 128000
+  methylation:
+    threads: 8
+    mem_mb: 128000
+  copynumber:
+    threads: 8
+    mem_mb: 128000
+  nanomonsv_parse:
+    threads: 8
+    mem_mb: 128000
+  nanomonsv_get:
+    threads: 8
+    mem_mb: 240000
+  nanomonsv_postprocess:
+    threads: 1
+    mem_mb: 30000
+  nanomonsv_insert_classify:
+    threads: 8
+    mem_mb: 128000
+  nanomonsv_connect:
+    threads: 1
+    mem_mb: 30000
+  nanomonsv_merge:
+    threads: 1
+    mem_mb: 30000
+  clairs:
+    threads: 8
+    mem_mb: 128000
+  deepsomatic:
+    threads: 8
+    mem_mb: 128000
+  clairs_postprocess:
+    threads: 1
+    mem_mb: 8000
+  clairs_postprocess_realign:
+    threads: 8
+    mem_mb: 128000
+  clairs_postprocess_pileup:
+    threads: 6
+    mem_mb: 240000
+  deepsomatic_postprocess:
+    threads: 1
+    mem_mb: 8000
+  deepsomatic_postprocess_realign:
+    threads: 8
+    mem_mb: 128000
+  deepsomatic_postprocess_pileup:
+    threads: 6
+    mem_mb: 240000
+  prep_sv:
+    threads: 1
+    mem_mb: 8000
+  coordconv_sv:
+    threads: 1
+    mem_mb: 8000
+  annotate_sv:
+    threads: 1
+    mem_mb: 16000
+  reclassify_sv:
+    threads: 1
+    mem_mb: 16000
+  prep_mut:
+    threads: 1
+    mem_mb: 8000
+  coordconv_mut:
+    threads: 1
+    mem_mb: 8000
+  annotate_mut:
+    threads: 1
+    mem_mb: 16000
+
+# ---- sample-level params (HG008 is male) ----
+sex: male
+hap1_satellite: test/resources/annotation/HG008N.hap1_dna-brnn.bed.gz
+hap2_satellite: test/resources/annotation/HG008N.hap2_dna-brnn.bed.gz
+simple_repeat:  test/resources/annotation/HG008N.simple_repeats.bed.gz
+gtf_file:       test/resources/annotation/HG008N.liftoff.gtf.gz
+gff_file:       test/resources/annotation/HG008N.liftoff.gff.gz
+line1_bed:      test/resources/annotation/HG008N.LINE1.bed.gz
+
+# ---- annotation resources (set to "" to skip the corresponding step) ----
+repeat_masker_bed:    test/resources/annotation/HG008N.rmsk.bed.gz
+segdup_bed:           test/resources/annotation/HG008N.segdup.bed.gz
+censat_bed:           test/resources/annotation/HG008N.censat.bed.gz
+misassembly_hap1_bed: test/resources/annotation/HG008N.misassembly_hap1.bed.gz
+misassembly_hap2_bed: test/resources/annotation/HG008N.misassembly_hap2.bed.gz
+
+# ---- external GRCh38 references (left empty; fill in to enable downstream steps) ----
+chain_to_grch38: ""
+chain_to_chm13: ""
+cancer_gene_census_tsv: ""
+cmrg_gene_tsv: ""
+gencode_transcript_bed: ""
+gnomad_bed: ""
+gnomad_vcf: ""
+grch38_fasta: ""

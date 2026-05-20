@@ -1,0 +1,3 @@
+sample	type	ont	hifi	assembly_hap1	assembly_hap2
+HG008T	tumor	../resources/reads/ont/HG008T.chr20.ont.bam	../resources/reads/hifi/HG008T.chr20.hifi.bam	../resources/asm/HG008N.hap1.chr20.fa	../resources/asm/HG008N.hap2.chr20.fa
+HG008N	normal	../resources/reads/ont/HG008N.chr20.ont.bam	../resources/reads/hifi/HG008N.chr20.hifi.bam	../resources/asm/HG008N.hap1.chr20.fa	../resources/asm/HG008N.hap2.chr20.fa
