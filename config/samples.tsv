@@ -1,0 +1,3 @@
+sample	type	ont	hifi	assembly_hap1	assembly_hap2
+SAMPLE_TUMOR	tumor	/path/to/tumor.ont.bam	/path/to/tumor.hifi.bam	/path/to/assembly.hap1.fa	/path/to/assembly.hap2.fa
+SAMPLE_NORMAL	normal	/path/to/normal.ont.bam	/path/to/normal.hifi_1.bam,/path/to/normal.hifi_2.bam	/path/to/nassembly.hap1.fa	/path/to/assembly.hap2.fa
