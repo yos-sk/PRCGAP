@@ -89,7 +89,7 @@ resources:
     mem_mb: 16000
 
 # ---- sample-level params (HG008 is male) ----
-sex: male
+sex: female
 hap1_satellite: test/resources/annotation/HG008N.hap1_dna-brnn.bed.gz
 hap2_satellite: test/resources/annotation/HG008N.hap2_dna-brnn.bed.gz
 copynumber_binwidth: 0.05
