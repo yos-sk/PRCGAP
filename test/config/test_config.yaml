@@ -88,7 +88,7 @@ resources:
     threads: 1
     mem_mb: 16000
 
-# ---- sample-level params (HG008 is male) ----
+# ---- sample-level params (HG008 is female) ----
 sex: female
 hap1_satellite: test/resources/annotation/HG008N.hap1_dna-brnn.bed.gz
 hap2_satellite: test/resources/annotation/HG008N.hap2_dna-brnn.bed.gz
