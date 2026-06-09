@@ -278,6 +278,26 @@ properties:
     type: string
     description: path to satellite regions for haplotype 2
 
+  copynumber_binwidth:
+    type: number
+    description: bin width for the depth-ratio mode/ploidy estimate (default 0.05)
+
+  copynumber_hap1_label:
+    type: string
+    description: haplotype 1 label on the copy number plot (default Haplotype1)
+
+  copynumber_hap2_label:
+    type: string
+    description: haplotype 2 label on the copy number plot (default Haplotype2)
+
+  copynumber_ploidy_hap1:
+    type: ["string", "integer"]
+    description: manual hap1 tumor ploidy override; empty string to auto-estimate
+
+  copynumber_ploidy_hap2:
+    type: ["string", "integer"]
+    description: manual hap2 tumor ploidy override; empty string to auto-estimate
+
   sex:
     type: string
     description: sex of the sample (female or male)

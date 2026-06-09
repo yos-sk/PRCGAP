@@ -19,6 +19,13 @@ HAP2_SATELLITE=${11}
 SEX=${12}
 SCRIPT_DIR=${13:-./scripts}
 THREAD=${14:-8}
+# Plotting params. Ploidy is estimated automatically (estimate_ploidy.R via
+# cbs.R --auto-ploidy); pass non-empty PLOIDY_HAP{1,2} to override per haplotype.
+BIN_WIDTH=${15:-0.05}
+HAP1_LABEL=${16:-Haplotype1}
+HAP2_LABEL=${17:-Haplotype2}
+PLOIDY_HAP1_ARG=${18:-}
+PLOIDY_HAP2_ARG=${19:-}
 
 mkdir -p ${WORK_DIR}
 mkdir -p ${OUTPUT_DIR}
@@ -76,5 +83,59 @@ do
         -n ${WORK_DIR}/${NORMAL}.${hap}.depth.bed.gz \
         -r ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv
 done
+
+# 6. CBS segmentation (with automatic ploidy estimation) and gap splitting
+for hap in hap1 hap2
+do
+    if [ -n "${PLOIDY_HAP1_ARG}" ] && [ -n "${PLOIDY_HAP2_ARG}" ]; then
+        # Manual ploidy override.
+        if [ ${hap} = "hap1" ]; then PLOIDY_ARG=${PLOIDY_HAP1_ARG}; else PLOIDY_ARG=${PLOIDY_HAP2_ARG}; fi
+        Rscript "${SCRIPT_DIR}"/copynumber/cbs.R \
+            -i ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv \
+            -s ${TUMOR} \
+            -o ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.txt \
+            -p ${PLOIDY_ARG} \
+            -w ${BIN_WIDTH} \
+            --ploidy-out ${OUTPUT_DIR}/${TUMOR}.${hap}.ploidy
+    else
+        # Automatic ploidy estimation; cbs.R writes the resolved ploidy to --ploidy-out.
+        Rscript "${SCRIPT_DIR}"/copynumber/cbs.R \
+            -i ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv \
+            -s ${TUMOR} \
+            -o ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.txt \
+            -a \
+            -w ${BIN_WIDTH} \
+            --ploidy-out ${OUTPUT_DIR}/${TUMOR}.${hap}.ploidy
+    fi
+
+    python3 "${SCRIPT_DIR}"/copynumber/split_gaps.py \
+        ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv \
+        ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.txt \
+        > ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.split.txt
+done
+
+PLOIDY_HAP1=$(< ${OUTPUT_DIR}/${TUMOR}.hap1.ploidy)
+PLOIDY_HAP2=$(< ${OUTPUT_DIR}/${TUMOR}.hap2.ploidy)
+
+# 7. Build a combined centromere/satellite annotation (contig coordinates) for
+# the plot from the per-haplotype satellite BEDs used for masking, then plot.
+# Decompress both and recompress into a single clean bgzip stream.
+zcat ${HAP1_SATELLITE} ${HAP2_SATELLITE} | bgzip -c > ${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz
+
+Rscript "${SCRIPT_DIR}"/copynumber/plot_copy_number.R \
+    -i ${OUTPUT_DIR}/${TUMOR}.hap1.copynumber.tsv \
+    -j ${OUTPUT_DIR}/${TUMOR}.hap2.copynumber.tsv \
+    -k ${OUTPUT_DIR}/${TUMOR}.hap1.cbs.split.txt \
+    -l ${OUTPUT_DIR}/${TUMOR}.hap2.cbs.split.txt \
+    -o ${OUTPUT_DIR}/${TUMOR}.copynumber.png \
+    -s ${TUMOR} \
+    -p ${PLOIDY_HAP1} \
+    -t ${PLOIDY_HAP2} \
+    -q ${OUTPUT_DIR}/${NORMAL}.hap1.ref.table \
+    -r ${OUTPUT_DIR}/${NORMAL}.hap2.ref.table \
+    -a ${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz \
+    -w ${BIN_WIDTH} \
+    --hap1_label ${HAP1_LABEL} \
+    --hap2_label ${HAP2_LABEL}
 
 echo ${?}

@@ -1,0 +1,304 @@
+#!/usr/bin/env Rscript
+# Circular Binary Segmentation (CBS) analysis for copy number variation detection
+# This script performs CBS on copy number data from PRCGAP output
+
+library(DNAcopy)
+library(tidyverse)
+library(optparse)
+
+# Score-only comb-coverage ploidy estimator (estimate_ploidy()).
+# estimate_ploidy.R lives alongside this script; resolve this script's own
+# directory so it can be sourced regardless of the current working directory
+# (the workflow invokes cbs.R by absolute path, not from the scripts/ directory).
+get_script_dir <- function() {
+  file_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+  if (length(file_arg) > 0) {
+    return(dirname(normalizePath(sub("^--file=", "", file_arg[1]))))
+  }
+  return(getwd())
+}
+source(file.path(get_script_dir(), "estimate_ploidy.R"))
+
+# Constants
+MIN_COVERAGE_THRESHOLD <- 100000
+MIN_TUMOR_COVERAGE <- 10000
+DEFAULT_PLOIDY <- 1
+DEFAULT_BINWIDTH <- 0.05
+UNDO_SD_THRESHOLD <- 1.5
+
+# Command-line argument parsing
+parse_arguments <- function() {
+  option_list <- list(
+    make_option(c("-i", "--input"),
+                type = "character",
+                help = "Input copy number file from PRCGAP"),
+    make_option(c("-s", "--sample"),
+                type = "character",
+                help = "Sample name"),
+    make_option(c("-o", "--output"),
+                type = "character",
+                help = "Output file of circular binary segmentation result"),
+    make_option(c("-p", "--ploidy"),
+                type = "integer",
+                default = DEFAULT_PLOIDY,
+                help = "Tumor ploidy [default: %default]"),
+    make_option(c("-a", "--auto-ploidy"),
+                action = "store_true",
+                default = FALSE,
+                help = "Estimate tumor ploidy automatically from depth ratio (overrides --ploidy) [default: %default]"),
+    make_option(c("-w", "--binwidth"),
+                type = "double",
+                default = DEFAULT_BINWIDTH,
+                help = "Bin width for getting mode value of depth ratio [default: %default]"),
+    make_option(c("-y", "--ploidy-out"),
+                type = "character",
+                default = NULL,
+                help = "Write the resolved tumor ploidy (integer) to this file, for downstream use")
+  )
+
+  opt <- parse_args(OptionParser(option_list = option_list))
+
+  # Validate required arguments
+  if (is.null(opt$input) || is.null(opt$sample) || is.null(opt$output)) {
+    stop("Error: --input, --sample, and --output are required arguments")
+  }
+
+  if (!file.exists(opt$input)) {
+    stop(paste("Error: Input file does not exist:", opt$input))
+  }
+
+  return(opt)
+}
+
+# Load copy number data
+load_copynumber_data <- function(input_file) {
+  data <- read.table(input_file, sep = "\t", header = FALSE, comment.char = "")
+
+  # Assign meaningful column names
+  colnames(data) <- c("chromosome", "start", "end", "tumor_depth", "normal_depth")
+
+  if (nrow(data) == 0) {
+    stop("Error: Input file is empty")
+  }
+
+  return(data)
+}
+
+# Calculate normalization factors
+calculate_normalization_factors <- function(data, tumor_ploidy) {
+  normal_ploidy <- 1
+
+  # Calculate total counts for high-coverage regions
+  normal_count <- sum(data[data$normal_depth > MIN_COVERAGE_THRESHOLD, ]$normal_depth)
+  tumor_count <- sum(data[data$normal_depth > MIN_COVERAGE_THRESHOLD, ]$tumor_depth)
+
+  # Calculate number of rows
+  normal_nrow <- nrow(data)
+  tumor_nrow <- nrow(data[data$tumor_depth > MIN_TUMOR_COVERAGE, ])
+
+  list(
+    normal_count = normal_count,
+    tumor_count = tumor_count,
+    normal_nrow = normal_nrow,
+    tumor_nrow = tumor_nrow,
+    normal_ploidy = normal_ploidy,
+    tumor_ploidy = tumor_ploidy
+  )
+}
+
+# Calculate normalized depth ratio
+calculate_depth_ratio <- function(data, norm_factors) {
+  # Calculate raw depth ratio with normalization
+  data$depth_ratio <- data$tumor_depth / data$normal_depth *
+    norm_factors$normal_count / norm_factors$tumor_count *
+    norm_factors$tumor_nrow * norm_factors$tumor_ploidy /
+    (norm_factors$normal_nrow * norm_factors$normal_ploidy)
+
+  return(data)
+}
+
+# Filter data for CBS analysis
+filter_data_for_cbs <- function(data) {
+  filtered_data <- data %>%
+    filter(!is.na(depth_ratio) & is.finite(depth_ratio),
+           normal_depth > MIN_COVERAGE_THRESHOLD)
+
+  if (nrow(filtered_data) == 0) {
+    stop("Error: No data remaining after filtering")
+  }
+
+  return(filtered_data)
+}
+
+# Calculate mode value of depth ratio distribution
+calculate_mode_depth_ratio <- function(data, binwidth) {
+  # Create histogram to find mode
+  positive_data <- data[data$depth_ratio > 0, ]
+
+  if (nrow(positive_data) == 0) {
+    stop("Error: No positive depth ratios found")
+  }
+
+  hist_plot <- ggplot(positive_data, aes(x = depth_ratio)) +
+    geom_histogram(binwidth = binwidth)
+  hist_data <- ggplot_build(hist_plot)$data[[1]]
+
+  cat("Histogram data:\n")
+  print(hist_data)
+
+  # Get mode value only from bins where x > 0
+  hist_data_positive <- hist_data[hist_data$x > 0, ]
+  mode_value <- hist_data_positive$x[which.max(hist_data_positive$count)]
+
+  cat("Mode value:", mode_value, "\n")
+
+  return(mode_value)
+}
+
+# Resolve the tumor ploidy to use: either the manual --ploidy, or, when
+# --auto-ploidy is set, the value estimated by estimate_ploidy() from the
+# ploidy-agnostic (tumor_ploidy = 1) depth ratio.
+resolve_ploidy <- function(data, opt) {
+  if (!isTRUE(opt[["auto-ploidy"]])) {
+    return(opt$ploidy)
+  }
+
+  # Build the ploidy-agnostic depth ratio (same normalization as the
+  # estimate_ploidy validation: tumor_ploidy = 1, no mode division).
+  norm_factors_1 <- calculate_normalization_factors(data, tumor_ploidy = 1)
+  data_1 <- calculate_depth_ratio(data, norm_factors_1)
+  filtered_1 <- filter_data_for_cbs(data_1)
+
+  est <- estimate_ploidy(filtered_1$depth_ratio)
+
+  cat(sprintf(
+    "[auto-ploidy] estimated ploidy = %d (mu = %.3f, confidence = %s; CN1 score = %.2f, CN2 score = %.2f)\n",
+    est$ploidy, est$mu, est$confidence, est$cn1_score, est$cn2_score))
+
+  if (grepl("^low", est$confidence)) {
+    warning(sprintf(
+      "[auto-ploidy] low-confidence ploidy estimate (CN1 = %.2f, CN2 = %.2f); consider setting --ploidy manually.",
+      est$cn1_score, est$cn2_score))
+  }
+
+  est$ploidy
+}
+
+# Calibrate the depth ratio so the dominant copy-number state sits at the
+# integer tumor ploidy. Input depth_ratio is the ploidy-agnostic ratio (R0,
+# tumor_ploidy = 1). The dominant state is the tallest KDE peak (detect_peaks),
+# the robust analogue of the histogram mode; setting mu = tallest_peak / ploidy
+# and dividing places that peak exactly at the integer ploidy and other peaks at
+# their integer multiples. This replaces the old histogram-mode normalization
+# (which had bin-width quantization slop); the mode is kept only as a fallback
+# when no peak is found (e.g. very low coverage).
+calibrate_depth_ratio <- function(filtered_data, ploidy, binwidth) {
+  peaks <- detect_peaks(filtered_data$depth_ratio)
+  if (nrow(peaks) > 0) {
+    mu <- peaks$x[which.max(peaks$y)] / ploidy
+    cat("Calibration via tallest peak: mu =", mu, "(ploidy =", ploidy, ")\n")
+  } else {
+    mode_value <- calculate_mode_depth_ratio(filtered_data, binwidth)
+    mu <- mode_value / ploidy
+    cat("No peaks detected; calibration via histogram mode: mu =", mu, "\n")
+  }
+  filtered_data$depth_ratio <- filtered_data$depth_ratio / mu
+  return(filtered_data)
+}
+
+# Prepare data for CBS analysis
+prepare_cbs_data <- function(filtered_data) {
+  cna_data <- data.frame(
+    chromosome = gsub("chr", "", filtered_data$chromosome),
+    maploc = filtered_data$end,
+    log_ratio = filtered_data$depth_ratio
+  )
+
+  return(cna_data)
+}
+
+# Perform CBS segmentation
+perform_cbs <- function(cna_data, sample_name) {
+  # Create CNA object
+  CNA_object <- CNA(
+    genomdat = cna_data$log_ratio,
+    chrom = cna_data$chromosome,
+    maploc = cna_data$maploc,
+    data.type = "logratio",
+    sampleid = sample_name
+  )
+
+  # Smooth the data
+  smoothed_CNA_object <- smooth.CNA(CNA_object)
+
+  # Segment the data
+  segment_CNA_object <- segment(
+    smoothed_CNA_object,
+    undo.splits = "sdundo",
+    undo.SD = UNDO_SD_THRESHOLD,
+    verbose = 1
+  )
+
+  return(segment_CNA_object)
+}
+
+# Write segmentation results to file
+write_results <- function(segment_result, output_file) {
+  write.table(
+    segment_result$output,
+    file = output_file,
+    row.names = FALSE,
+    col.names = FALSE,
+    sep = "\t",
+    quote = FALSE
+  )
+
+  cat("Results written to:", output_file, "\n")
+}
+
+# Main function
+main <- function() {
+  # Parse command-line arguments
+  opt <- parse_arguments()
+
+  cat("Loading copy number data from:", opt$input, "\n")
+
+  # Load data
+  data <- load_copynumber_data(opt$input)
+
+  # Resolve ploidy (manual --ploidy, or automatic when --auto-ploidy is set)
+  ploidy <- resolve_ploidy(data, opt)
+  cat("Using tumor ploidy:", ploidy, "\n")
+
+  # Optionally write the resolved ploidy to a file so downstream steps can read
+  # it directly instead of parsing it out of the log.
+  if (!is.null(opt[["ploidy-out"]])) {
+    writeLines(as.character(ploidy), opt[["ploidy-out"]])
+    cat("Wrote resolved ploidy to:", opt[["ploidy-out"]], "\n")
+  }
+
+  # Calculate the ploidy-agnostic depth ratio (tumor_ploidy = 1), then calibrate
+  # so the dominant copy-number state sits at the integer ploidy via the peak
+  # comb (see calibrate_depth_ratio).
+  norm_factors <- calculate_normalization_factors(data, tumor_ploidy = 1)
+  data <- calculate_depth_ratio(data, norm_factors)
+  filtered_data <- filter_data_for_cbs(data)
+  filtered_data <- calibrate_depth_ratio(filtered_data, ploidy, opt$binwidth)
+
+  # Prepare data for CBS
+  cna_data <- prepare_cbs_data(filtered_data)
+
+  # Perform CBS
+  cat("Performing circular binary segmentation...\n")
+  segment_result <- perform_cbs(cna_data, opt$sample)
+
+  # Write results
+  write_results(segment_result, opt$output)
+
+  cat("Analysis complete!\n")
+}
+
+# Run main function
+if (!interactive()) {
+  main()
+}

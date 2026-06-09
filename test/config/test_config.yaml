@@ -92,6 +92,9 @@ resources:
 sex: male
 hap1_satellite: test/resources/annotation/HG008N.hap1_dna-brnn.bed.gz
 hap2_satellite: test/resources/annotation/HG008N.hap2_dna-brnn.bed.gz
+copynumber_binwidth: 0.05
+copynumber_hap1_label: Haplotype1
+copynumber_hap2_label: Haplotype2
 simple_repeat:  test/resources/annotation/HG008N.simple_repeats.bed.gz
 gtf_file:       test/resources/annotation/HG008N.liftoff.gtf.gz
 gff_file:       test/resources/annotation/HG008N.liftoff.gff.gz

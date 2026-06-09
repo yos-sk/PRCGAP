@@ -130,6 +130,13 @@ simple_repeat: ""
 gtf_file: ""           # liftoff GTF for nanomonsv insert_classify
 line1_bed: ""
 
+# ---- copy number plot params ----
+copynumber_binwidth: 0.05        # bin width for the depth-ratio mode/ploidy estimate
+copynumber_hap1_label: Haplotype1
+copynumber_hap2_label: Haplotype2
+copynumber_ploidy_hap1: ""       # leave "" to auto-estimate tumor ploidy; set an integer to override
+copynumber_ploidy_hap2: ""
+
 # ---- annotation resources (set to "" to skip the corresponding step) ----
 gff_file: ""                   # tabix-indexed liftoff GFF for SV/SNV/INDEL gene annotation
 chain_to_grch38: ""
