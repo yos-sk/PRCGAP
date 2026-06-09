@@ -15,15 +15,15 @@ set -euo pipefail
 
 # tool name -> registry URL (replace once images are hosted)
 declare -A IMAGES=(
-    [bam_refiner]="docker://yosakam2/bam_refiner:0.3.6"
-    [methylation]="docker://yosakam2/methylation:0.1.0"
-    [copynumber]="docker://yosakam2/copynumber:0.1.0"
+    [bam_refiner]="docker://yosakam2/bam_refiner:v0.3.6"
+    [methylation]="docker://yosakam2/methylation:v0.1.0"
+    [copynumber]="docker://yosakam2/copynumber:v0.2.0"
     [nanomonsv]="docker://friend1ws/nanomonsv:v0.8.0"
-    [nanomonsv_postprocess]="docker://yosakam2/nanomonsv_postprocess:0.2.5"
-    [clairs]="docker://yosakam2/clairs:0.4.0"
-    [deepsomatic]="docker://yosakam2/deepsomatic:1.8.0"
-    [point_mutation_postprocess]="docker://yosakam2/mutation_postprocess:0.1.2"
-    [annotation]="docker://yosakam2/annotation:0.1.0"
+    [nanomonsv_postprocess]="docker://yosakam2/nanomonsv_postprocess:v0.2.5"
+    [clairs]="docker://yosakam2/clairs:v0.4.0"
+    [deepsomatic]="docker://yosakam2/deepsomatic:v1.8.0"
+    [point_mutation_postprocess]="docker://yosakam2/mutation_postprocess:v0.1.2"
+    [annotation]="docker://yosakam2/annotation:v0.1"
 )
 
 for tool in "${!IMAGES[@]}"; do
