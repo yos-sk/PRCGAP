@@ -26,6 +26,10 @@ HAP1_LABEL=${16:-Haplotype1}
 HAP2_LABEL=${17:-Haplotype2}
 PLOIDY_HAP1_ARG=${18:-}
 PLOIDY_HAP2_ARG=${19:-}
+# Centromere/satellite annotation for the plot (contig coordinates). When set,
+# the cenSat BED is used directly; otherwise it is built from the per-haplotype
+# dna-brnn satellite BEDs used for masking.
+CENSAT_BED=${20:-}
 
 mkdir -p ${WORK_DIR}
 mkdir -p ${OUTPUT_DIR}
@@ -117,10 +121,16 @@ done
 PLOIDY_HAP1=$(< ${OUTPUT_DIR}/${TUMOR}.hap1.ploidy)
 PLOIDY_HAP2=$(< ${OUTPUT_DIR}/${TUMOR}.hap2.ploidy)
 
-# 7. Build a combined centromere/satellite annotation (contig coordinates) for
-# the plot from the per-haplotype satellite BEDs used for masking, then plot.
-# Decompress both and recompress into a single clean bgzip stream.
-zcat ${HAP1_SATELLITE} ${HAP2_SATELLITE} | bgzip -c > ${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz
+# 7. Resolve the centromere/satellite annotation (contig coordinates) for the
+# plot. Prefer the cenSat BED when provided; otherwise build one from the
+# per-haplotype dna-brnn satellite BEDs used for masking (decompress both and
+# recompress into a single clean bgzip stream).
+if [ -n "${CENSAT_BED}" ]; then
+    ANNOTATION=${CENSAT_BED}
+else
+    zcat ${HAP1_SATELLITE} ${HAP2_SATELLITE} | bgzip -c > ${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz
+    ANNOTATION=${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz
+fi
 
 Rscript "${SCRIPT_DIR}"/copynumber/plot_copy_number.R \
     -i ${OUTPUT_DIR}/${TUMOR}.hap1.copynumber.tsv \
@@ -133,7 +143,7 @@ Rscript "${SCRIPT_DIR}"/copynumber/plot_copy_number.R \
     -t ${PLOIDY_HAP2} \
     -q ${OUTPUT_DIR}/${NORMAL}.hap1.ref.table \
     -r ${OUTPUT_DIR}/${NORMAL}.hap2.ref.table \
-    -a ${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz \
+    -a ${ANNOTATION} \
     -w ${BIN_WIDTH} \
     --hap1_label ${HAP1_LABEL} \
     --hap2_label ${HAP2_LABEL}

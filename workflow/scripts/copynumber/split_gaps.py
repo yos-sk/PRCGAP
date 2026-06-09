@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-import numpy as np
 
 def split_gaps(input_file: str, cbs_result: str) -> None:
     gap_db = dict()
