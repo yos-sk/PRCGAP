@@ -148,6 +148,12 @@ def create_config(args):
         "gtf_file": _abs(args.gtf_file) or "",
         "gff_file": _abs(args.gff_file) or "",
         "line1_bed": _abs(args.line1_bed) or "",
+        # ---- copy number plot params ----
+        "copynumber_binwidth": args.copynumber_binwidth,
+        "copynumber_hap1_label": args.copynumber_hap1_label,
+        "copynumber_hap2_label": args.copynumber_hap2_label,
+        "copynumber_ploidy_hap1": args.copynumber_ploidy_hap1,
+        "copynumber_ploidy_hap2": args.copynumber_ploidy_hap2,
         # ---- annotation resources (optional) ----
         "chain_to_grch38": _abs(args.chain_to_grch38) or "",
         "chain_to_chm13": _abs(args.chain_to_chm13) or "",
@@ -183,6 +189,21 @@ def write_runner(args, config_path: Path, runner_path: Path):
 
     cmd_lines = ["#!/bin/bash", "set -euo pipefail", ""]
 
+    # Targets to build. When --targets is given, bake them in as defaults so the
+    # runner builds only those (e.g. copynumber alone); targets passed on the
+    # runner's command line still override them via "${@:-...}". Otherwise pass
+    # "$@" straight through and let snakemake build the full pipeline by default.
+    if args.targets:
+        targets_array = " ".join(args.targets)
+        cmd_lines.append(
+            "# Default targets baked in by setup_workflow.py --targets;\n"
+            "# arguments passed to this script override them.")
+        cmd_lines.append(f"DEFAULT_TARGETS=({targets_array})")
+        cmd_lines.append("")
+        targets_expr = '"${@:-${DEFAULT_TARGETS[@]}}"'
+    else:
+        targets_expr = '"$@"'
+
     cmd_parts = [
         "snakemake",
         f"--snakefile {snakefile}",
@@ -213,7 +234,7 @@ def write_runner(args, config_path: Path, runner_path: Path):
         "--rerun-triggers mtime",
         "--rerun-incomplete",
         "--keep-going",
-        '"$@"',
+        targets_expr,
     ])
 
     cmd_lines.append(" \\\n    ".join(cmd_parts))
@@ -304,6 +325,23 @@ Examples:
                              "insert_classify only.")
     parser.add_argument("--line1-bed", default="")
 
+    # ---------- copy number plot params (all optional) ----------
+    parser.add_argument("--copynumber-binwidth", type=float, default=0.05,
+                        help="bin width for the depth-ratio mode/ploidy estimate "
+                             "(default: 0.05)")
+    parser.add_argument("--copynumber-hap1-label", default="Haplotype1",
+                        help="haplotype 1 label on the copy number plot "
+                             "(default: Haplotype1)")
+    parser.add_argument("--copynumber-hap2-label", default="Haplotype2",
+                        help="haplotype 2 label on the copy number plot "
+                             "(default: Haplotype2)")
+    parser.add_argument("--copynumber-ploidy-hap1", default="",
+                        help="manual hap1 tumor ploidy override; leave empty to "
+                             "auto-estimate")
+    parser.add_argument("--copynumber-ploidy-hap2", default="",
+                        help="manual hap2 tumor ploidy override; leave empty to "
+                             "auto-estimate")
+
     # ---------- annotation resources (all optional) ----------
     ann_group = parser.add_argument_group(
         "Annotation resources",
@@ -347,6 +385,12 @@ Examples:
                         help="path for generated runner shell script (default: run_workflow.sh)")
     parser.add_argument("--workflow-dir", default="workflow",
                         help="snakemake workflow directory containing Snakefile (default: workflow)")
+    parser.add_argument("--targets", nargs="+", default=None,
+                        help="snakemake targets to bake into the runner so it builds only "
+                             "those by default (e.g. 'copynumber/HG008T/output'). Targets are "
+                             "relative to --output-dir. Omit to build the full pipeline. "
+                             "Targets passed to the runner on the command line still take "
+                             "precedence over the baked-in ones.")
     parser.add_argument("--force", "-f", action="store_true", default=False,
                         help="Overwrite existing output files")
 

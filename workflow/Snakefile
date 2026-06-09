@@ -48,7 +48,7 @@ def get_all_targets():
     ))
 
     # copynumber (per tumor)
-    targets.extend(expand("copynumber/{tumor}/output", tumor=tumors))
+    targets.extend(expand("copynumber/{tumor}/output/{tumor}.copynumber.png", tumor=tumors))
 
     # nanomonsv: insert classify + connect + merge
     targets.extend(expand(

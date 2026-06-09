@@ -88,3 +88,7 @@ python3 ../setup_workflow.py \
     --images-dir ../images \
     --jobs 8 \
     --force
+# To make run_test.sh build only a subset by default (e.g. copy number alone),
+# add a --targets line above, before --force. Targets are relative to
+# --output-dir (./HG008); the tumor sample is HG008T:
+#   --targets copynumber/HG008T/output \

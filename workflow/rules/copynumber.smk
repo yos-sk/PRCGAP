@@ -10,7 +10,7 @@ rule copynumber:
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
         reference=config.get("chm13_fasta", ""),
     output:
-        directory("copynumber/{tumor}/output")
+        "copynumber/{tumor}/output/{tumor}.copynumber.png"
     message:
         "--- Running copy number analysis for {wildcards.tumor}"
     params:
@@ -20,7 +20,13 @@ rule copynumber:
         output_dir="copynumber/{tumor}/output",
         hap1_satellite=config.get("hap1_satellite", ""),
         hap2_satellite=config.get("hap2_satellite", ""),
-        sex=config.get("sex", "female")
+        sex=config.get("sex", "female"),
+        binwidth=config.get("copynumber_binwidth", 0.05),
+        hap1_label=config.get("copynumber_hap1_label", "Haplotype1"),
+        hap2_label=config.get("copynumber_hap2_label", "Haplotype2"),
+        ploidy_hap1=config.get("copynumber_ploidy_hap1", ""),
+        ploidy_hap2=config.get("copynumber_ploidy_hap2", ""),
+        censat_bed=config.get("censat_bed", "")
     threads:
         get_threads("copynumber", 8)
     resources:
@@ -45,5 +51,11 @@ rule copynumber:
             {params.hap2_satellite} \
             {params.sex} \
             {SCRIPTS_DIR} \
-            {threads} &> {log}
+            {threads} \
+            {params.binwidth} \
+            {params.hap1_label} \
+            {params.hap2_label} \
+            "{params.ploidy_hap1}" \
+            "{params.ploidy_hap2}" \
+            "{params.censat_bed}" &> {log}
         """
