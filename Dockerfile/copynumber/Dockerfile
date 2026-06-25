@@ -51,6 +51,16 @@ RUN wget https://github.com/arq5x/bedtools2/releases/download/v2.31.0/bedtools.s
 # Install Python dependencies (Debian's Python is externally managed -> --break-system-packages).
 RUN pip3 install --no-cache-dir --break-system-packages pysam
 
+# Helvetica-compatible font for the plots. Helvetica itself is proprietary (no
+# free package); fonts-urw-base35 provides Nimbus Sans, and fontconfig ships a
+# built-in "Helvetica -> Nimbus Sans" alias, so plot_copy_number.R's
+# family="Helvetica" resolves deterministically (consistent across rebuilds/runs)
+# without changing the script.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        fonts-urw-base35 fontconfig && \
+    fc-cache -f && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install the remaining R packages. tidyverse (and its deps dplyr, scales) are
 # already present in the base image; these come as precompiled binaries from the
 # Posit Public Package Manager. DNAcopy is built from source via Bioconductor.

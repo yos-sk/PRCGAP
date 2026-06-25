@@ -90,8 +90,8 @@ def _coordconv_input(wildcards, ref):
     chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
     if _opt_path(chain_key):
         return (
-            f"annotate_sv/{wildcards.tumor}/{wildcards.seqtype}/workspace/"
-            f"{wildcards.tumor}.coordconv_{ref}.bed"
+            "annotate_sv/" + wildcards.tumor + "/" + wildcards.seqtype + "/workspace/"
+            + wildcards.tumor + ".coordconv_" + ref + ".bed"
         )
     return []
 
@@ -105,8 +105,8 @@ def _coordconv_param(wildcards, ref):
     chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
     if _opt_path(chain_key):
         return (
-            f"annotate_sv/{wildcards.tumor}/{wildcards.seqtype}/workspace/"
-            f"{wildcards.tumor}.coordconv_{ref}.bed"
+            "annotate_sv/" + wildcards.tumor + "/" + wildcards.seqtype + "/workspace/"
+            + wildcards.tumor + ".coordconv_" + ref + ".bed"
         )
     return ""
 

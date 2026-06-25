@@ -27,6 +27,31 @@
 
 set -euo pipefail
 
+# Generate the sample sheet (one tumor-normal pair sharing one assembly).
+# --no-check-exists: configure does not require the multi-GB read/asm files to
+# be staged yet. --no-absolutize: keep the resource paths relative to test/.
+python3 ../set_sample_sheet.py \
+    --tumor  HG008T \
+    --tumor-ont  ../resources/reads/ont/HG008T.chr20.ont.bam \
+    --tumor-hifi ../resources/reads/hifi/HG008T.chr20.hifi.bam \
+    --normal HG008N \
+    --normal-ont  ../resources/reads/ont/HG008N.chr20.ont.bam \
+    --normal-hifi ../resources/reads/hifi/HG008N.chr20.hifi.bam \
+    --assembly-hap1 ../resources/asm/HG008N.hap1.chr20.fa \
+    --assembly-hap2 ../resources/asm/HG008N.hap2.chr20.fa \
+    --no-absolutize --no-check-exists \
+    --output config/test_samples.tsv \
+    --force
+
+# NOTE on --singularity-bind $HOME (HPC symlink caveat):
+# Singularity binds the path you give *literally*. On many HPCs $HOME is a
+# symlink, e.g. /home/<user> -> /lustre/home/<user> (or the reverse). If your
+# reads/asm/annotation paths resolve to the real target (/lustre/...) but you
+# only bind the symlink ($HOME=/home/<user>), the container will not see them
+# and you get "No such file or directory" for paths that exist on the host.
+# Fix: bind the resolved real path as well, e.g.
+#     --singularity-bind "$HOME,$(readlink -f "$HOME")"
+# or bind both filesystem roots explicitly (e.g. --singularity-bind /lustre,/home).
 python3 ../setup_workflow.py \
     --samplesheet config/test_samples.tsv \
     --chm13-fasta resources/reference/chm13v2.0_maskedY_rCRS.fa \
@@ -50,7 +75,7 @@ python3 ../setup_workflow.py \
     --gnomad-bed             resources/annotation/gnomad.v4.1.sv.sites.bed.gz \
     --gnomad-vcf             resources/annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz \
     --grch38-fasta           resources/reference/GRCh38.d1.vd1.fa \
-    --singularity-bind /lustre1/home/yosakam2,/home/yosakam2 \
+    --singularity-bind $HOME \
     --bam-refiner-kmer-threads          8 --bam-refiner-kmer-mem-mb           16000 \
     --bam-refiner-threads               8 --bam-refiner-mem-mb                16000 \
     --assembly-bwa-index-threads        1 --assembly-bwa-index-mem-mb          8000 \

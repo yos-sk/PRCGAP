@@ -77,7 +77,7 @@ def get_paired_normal(tumor):
     elif "paired_normal" in samples.columns:
         return samples.loc[tumor, "paired_normal"]
     else:
-        raise ValueError(f"Cannot determine paired normal for tumor {tumor}. "
+        raise ValueError("Cannot determine paired normal for tumor " + tumor + ". "
                         "Either provide only one normal sample or add 'paired_normal' column to sample sheet.")
 
 # Default resource configurations for each tool

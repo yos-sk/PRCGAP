@@ -50,8 +50,8 @@ def _coordconv_snv_input(wildcards, ref):
     chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
     if _opt_path(chain_key):
         return (
-            f"annotate_snv/{wildcards.tumor}/{wildcards.tool}/workspace/"
-            f"{wildcards.tumor}.{wildcards.tool}.snv.coordconv_{ref}.bed"
+            "annotate_snv/" + wildcards.tumor + "/" + wildcards.tool + "/workspace/"
+            + wildcards.tumor + "." + wildcards.tool + ".snv.coordconv_" + ref + ".bed"
         )
     return []
 
@@ -60,8 +60,8 @@ def _liftvcf_indel_input(wildcards, ref):
     chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
     if _opt_path(chain_key):
         return (
-            f"annotate_indel/{wildcards.tumor}/{wildcards.tool}/workspace/"
-            f"{wildcards.tumor}.{wildcards.tool}.indel.liftvcf_{ref}.vcf.gz"
+            "annotate_indel/" + wildcards.tumor + "/" + wildcards.tool + "/workspace/"
+            + wildcards.tumor + "." + wildcards.tool + ".indel.liftvcf_" + ref + ".vcf.gz"
         )
     return []
 
