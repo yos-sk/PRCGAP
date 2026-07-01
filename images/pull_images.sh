@@ -27,7 +27,7 @@ declare -a IMAGES=(
     "bam_refiner                 docker://yosakam2/bam_refiner:v0.3.6"
     "methylation                 docker://yosakam2/methylation:v0.1.0"
     "copynumber                  docker://yosakam2/copynumber:v0.2.0"
-    "nanomonsv                   docker://friend1ws/nanomonsv:v0.8.0"
+    "nanomonsv                   docker://yosakam2/nanomonsv:v0.8.0"
     "nanomonsv_postprocess       docker://yosakam2/nanomonsv_postprocess:v0.2.5"
     "clairs                      docker://yosakam2/clairs:v0.4.0"
     "deepsomatic                 docker://yosakam2/deepsomatic:v1.8.0"
