@@ -15,6 +15,7 @@ ASSEMBLY_HAP2=$7
 DATA=$8
 SIMPLE_REPEAT=$9
 THREAD=${10:-8}
+SCRIPTS_DIR=${11}
 
 TUMOR_PREFIX=${OUTPUT_DIR}/${TUMOR}
 NORMAL_PREFIX=${OUTPUT_DIR}/${NORMAL}
@@ -48,8 +49,7 @@ else
         --qv15
 fi
 
-#python3 /nanomonsv/misc/add_simple_repeat.py \
-python3 /opt/miniconda3/envs/nanomonsv/lib/python3.12/site-packages/misc/add_simple_repeat.py \
+python3 ${SCRIPTS_DIR}/nanomonsv/add_simple_repeat.py \
     ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.txt \
     ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.filt.txt \
     ${SIMPLE_REPEAT}

@@ -43,15 +43,6 @@ python3 ../set_sample_sheet.py \
     --output config/test_samples.tsv \
     --force
 
-# NOTE on --singularity-bind $HOME (HPC symlink caveat):
-# Singularity binds the path you give *literally*. On many HPCs $HOME is a
-# symlink, e.g. /home/<user> -> /lustre/home/<user> (or the reverse). If your
-# reads/asm/annotation paths resolve to the real target (/lustre/...) but you
-# only bind the symlink ($HOME=/home/<user>), the container will not see them
-# and you get "No such file or directory" for paths that exist on the host.
-# Fix: bind the resolved real path as well, e.g.
-#     --singularity-bind "$HOME,$(readlink -f "$HOME")"
-# or bind both filesystem roots explicitly (e.g. --singularity-bind /lustre,/home).
 python3 ../setup_workflow.py \
     --samplesheet config/test_samples.tsv \
     --chm13-fasta resources/reference/chm13v2.0_maskedY_rCRS.fa \
@@ -92,12 +83,12 @@ python3 ../setup_workflow.py \
     --clairs-postprocess-threads        1 --clairs-postprocess-mem-mb          8000 \
     --clairs-postprocess-split-threads  1 --clairs-postprocess-split-mem-mb    8000 \
     --clairs-postprocess-realign-threads        8 --clairs-postprocess-realign-mem-mb        16000 \
-    --clairs-postprocess-pileup-threads         4 --clairs-postprocess-pileup-mem-mb         16000 \
+    --clairs-postprocess-pileup-threads         4 --clairs-postprocess-pileup-mem-mb         32000 \
     --clairs-postprocess-haplotype-threads      4 --clairs-postprocess-haplotype-mem-mb      16000 \
     --deepsomatic-postprocess-threads          1 --deepsomatic-postprocess-mem-mb            8000 \
     --deepsomatic-postprocess-split-threads    1 --deepsomatic-postprocess-split-mem-mb      8000 \
     --deepsomatic-postprocess-realign-threads  8 --deepsomatic-postprocess-realign-mem-mb   16000 \
-    --deepsomatic-postprocess-pileup-threads   4 --deepsomatic-postprocess-pileup-mem-mb    16000 \
+    --deepsomatic-postprocess-pileup-threads   4 --deepsomatic-postprocess-pileup-mem-mb    32000 \
     --deepsomatic-postprocess-haplotype-threads 4 --deepsomatic-postprocess-haplotype-mem-mb 16000 \
     --prep-sv-threads        1 --prep-sv-mem-mb         4000 \
     --coordconv-sv-threads   1 --coordconv-sv-mem-mb    4000 \

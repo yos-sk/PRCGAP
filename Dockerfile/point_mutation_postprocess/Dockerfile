@@ -43,12 +43,13 @@ RUN pip3 install --no-cache-dir pysam
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH=/root/.cargo/bin:$PATH
 
-# Install mutation_postprocess 
+# Install mutation_postprocess (build under /opt so it matches the PATH below)
+WORKDIR /opt
 RUN wget https://github.com/yos-sk/mutation_postprocess/archive/refs/tags/v0.1.2.tar.gz && \
     tar zxf v0.1.2.tar.gz && \
     cd mutation_postprocess-0.1.2 && \
-    cargo build --release
-RUN rm v0.1.2.tar.gz
+    cargo build --release && \
+    cd .. && rm v0.1.2.tar.gz
 
 ENV PATH="/opt/mutation_postprocess-0.1.2/target/release:$PATH"
 

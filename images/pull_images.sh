@@ -1,40 +1,95 @@
 #!/bin/bash
+# Pull every singularity image the PRCGAP workflow needs into this directory.
 #
-# Pull all singularity images required by the PRCGAP workflow into ./images/
-# (or the directory passed as $1).
+# File names follow `<image-key>.sif`, where <image-key> matches the keys used
+# by setup_workflow.py / the workflow rules. With every image staged under the
+# same dir using these names, `setup_workflow.py --images-dir <dir>` is enough
+# — no per-image override flags needed.
 #
-# After this script finishes, setup_workflow.py picks up the images by their
-# default paths (images/<tool>.sif) so users do not need to pass --*-image
-# flags on the command line.
+# Usage (run from this images/ directory):
+#   cd images
+#   bash pull_images.sh                       # pull missing images
+#   bash pull_images.sh --force               # re-pull everything (even if .sif exists)
+#   bash pull_images.sh clairs deepsomatic    # pull just these modules
+#   bash pull_images.sh --force clairs        # re-pull a single module
 #
-# Image URLs below are placeholders — replace with actual registry locations
-# (docker://quay.io/..., docker://ghcr.io/..., etc.) once images are published.
-# Until then, build from Dockerfile/<tool>/Dockerfile via singularity build.
+# Notes:
+# - Requires `singularity` (or `apptainer`) on PATH.
+# - Image URLs below are placeholders for unpublished images — replace once they
+#   are hosted. Until then, build from Dockerfile/<tool>/Dockerfile.
 
 set -euo pipefail
 
-# tool name -> registry URL (replace once images are hosted)
-declare -A IMAGES=(
-    [bam_refiner]="docker://yosakam2/bam_refiner:v0.3.6"
-    [methylation]="docker://yosakam2/methylation:v0.1.0"
-    [copynumber]="docker://yosakam2/copynumber:v0.2.0"
-    [nanomonsv]="docker://friend1ws/nanomonsv:v0.8.0"
-    [nanomonsv_postprocess]="docker://yosakam2/nanomonsv_postprocess:v0.2.5"
-    [clairs]="docker://yosakam2/clairs:v0.4.0"
-    [deepsomatic]="docker://yosakam2/deepsomatic:v1.8.0"
-    [point_mutation_postprocess]="docker://yosakam2/mutation_postprocess:v0.1.2"
-    [annotation]="docker://yosakam2/annotation:v0.1"
+# (module-key, docker URI). Each entry produces <key>.sif in this directory.
+# Stored as a plain array of "key uri" strings (not declare -A) so the script
+# also runs under the bash 3.2 shipped on macOS.
+declare -a IMAGES=(
+    "bam_refiner                 docker://yosakam2/bam_refiner:v0.3.6"
+    "methylation                 docker://yosakam2/methylation:v0.1.0"
+    "copynumber                  docker://yosakam2/copynumber:v0.2.0"
+    "nanomonsv                   docker://friend1ws/nanomonsv:v0.8.0"
+    "nanomonsv_postprocess       docker://yosakam2/nanomonsv_postprocess:v0.2.5"
+    "clairs                      docker://yosakam2/clairs:v0.4.0"
+    "deepsomatic                 docker://yosakam2/deepsomatic:v1.8.0"
+    "point_mutation_postprocess  docker://yosakam2/mutation_postprocess:v0.1.2"
+    "annotation                  docker://yosakam2/annotation:v0.1"
 )
 
-for tool in "${!IMAGES[@]}"; do
-    sif="./${tool}.sif"
-    url="${IMAGES[$tool]}"
-    if [ -f "${sif}" ]; then
-        echo "[skip] ${sif} already exists"
-        continue
-    fi
-    echo "[pull] ${tool} -> ${sif}"
-    singularity pull "${sif}" "${url}"
+FORCE=0
+SELECT=()
+for arg in "$@"; do
+    case "$arg" in
+        --force|-f) FORCE=1 ;;
+        -h|--help)
+            sed -n '1,/^set -euo pipefail/p' "$0" | sed 's/^# \?//'
+            exit 0
+            ;;
+        -*) echo "Unknown option: $arg" >&2; exit 1 ;;
+        *) SELECT+=("$arg") ;;
+    esac
 done
 
-echo "Done. Images placed in ./"
+# Pick singularity or apptainer (after arg parsing so --help works on hosts
+# without either installed).
+if command -v singularity >/dev/null 2>&1; then
+    SING=singularity
+elif command -v apptainer >/dev/null 2>&1; then
+    SING=apptainer
+else
+    echo "Error: neither singularity nor apptainer is on PATH" >&2
+    exit 1
+fi
+
+# Images are written to the current directory; run this script from images/.
+OUT_DIR="."
+
+pull_one() {
+    local key="$1"
+    local uri="$2"
+    local out="$OUT_DIR/${key}.sif"
+    if [[ -f "$out" && $FORCE -eq 0 ]]; then
+        echo "[skip ] $key  (already at $out; use --force to re-pull)"
+        return 0
+    fi
+    echo "[pull ] $key  ←  $uri"
+    # --force handles the case of a leftover partial download; singularity pull
+    # otherwise refuses to overwrite.
+    "$SING" pull --force "$out" "$uri"
+}
+
+for line in "${IMAGES[@]}"; do
+    # Split on whitespace; first token = key, remainder = uri.
+    read -r key uri <<<"$line"
+    if [[ ${#SELECT[@]} -gt 0 ]]; then
+        # When specific modules were requested, skip everything else.
+        match=0
+        for s in "${SELECT[@]}"; do
+            [[ "$key" == "$s" ]] && match=1 && break
+        done
+        [[ $match -eq 0 ]] && continue
+    fi
+    pull_one "$key" "$uri"
+done
+
+echo
+echo "Done. Use this directory with: setup_workflow.py --images-dir $(pwd)"

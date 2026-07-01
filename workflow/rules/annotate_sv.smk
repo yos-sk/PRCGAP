@@ -281,7 +281,10 @@ rule reclassify_sv:
     input:
         hifi_annotated="annotate_sv/{tumor}/hifi/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
         ont_annotated="annotate_sv/{tumor}/ont/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
-        copynumber_dir=lambda wc: "copynumber/{}/output".format(wc.tumor),
+        # Depend on the copynumber rule's declared output (the .png) so Snakemake
+        # knows how to build it; the ref.table files are produced alongside it in
+        # the same output dir (see params.copynumber_dir).
+        copynumber_png=lambda wc: "copynumber/{}/output/{}.copynumber.png".format(wc.tumor, wc.tumor),
     output:
         hifi="annotate_sv/{tumor}/{tumor}.hifi.PRCGAP.nanomonsv_results.reclassified.txt",
         ont="annotate_sv/{tumor}/{tumor}.ont.PRCGAP.nanomonsv_results.reclassified.txt",
@@ -289,6 +292,7 @@ rule reclassify_sv:
         "--- Reclassifying SV types for {wildcards.tumor}"
     params:
         normal=lambda wc: get_paired_normal(wc.tumor),
+        copynumber_dir="copynumber/{tumor}/output",
     threads:
         get_threads("reclassify_sv", 1)
     resources:
@@ -302,10 +306,10 @@ rule reclassify_sv:
         ( python3 {ANNOT_DIR}/reclassify_sv_type.py \
               -i {input.hifi_annotated} \
               -o {output.hifi} \
-              -r {input.copynumber_dir}/{params.normal}.hap1.ref.table {input.copynumber_dir}/{params.normal}.hap2.ref.table
+              -r {params.copynumber_dir}/{params.normal}.hap1.ref.table {params.copynumber_dir}/{params.normal}.hap2.ref.table
           python3 {ANNOT_DIR}/reclassify_sv_type.py \
               -i {input.ont_annotated} \
               -o {output.ont} \
-              -r {input.copynumber_dir}/{params.normal}.hap1.ref.table {input.copynumber_dir}/{params.normal}.hap2.ref.table
+              -r {params.copynumber_dir}/{params.normal}.hap1.ref.table {params.copynumber_dir}/{params.normal}.hap2.ref.table
         ) &> {log}
         """
