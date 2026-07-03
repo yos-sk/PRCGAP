@@ -30,6 +30,8 @@ PLOIDY_HAP2_ARG=${19:-}
 # the cenSat BED is used directly; otherwise it is built from the per-haplotype
 # dna-brnn satellite BEDs used for masking.
 CENSAT_BED=${20:-}
+# Force chrX/chrY onto the plot even when absent from the data (default: true).
+PLOT_SEX_CHROM=${21:-true}
 
 mkdir -p ${WORK_DIR}
 mkdir -p ${OUTPUT_DIR}
@@ -146,6 +148,7 @@ Rscript "${SCRIPT_DIR}"/copynumber/plot_copy_number.R \
     -a ${ANNOTATION} \
     -w ${BIN_WIDTH} \
     --hap1_label ${HAP1_LABEL} \
-    --hap2_label ${HAP2_LABEL}
+    --hap2_label ${HAP2_LABEL} \
+    --plot-sex-chrom ${PLOT_SEX_CHROM}
 
 echo ${?}

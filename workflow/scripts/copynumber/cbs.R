@@ -25,6 +25,11 @@ MIN_TUMOR_COVERAGE <- 10000
 DEFAULT_PLOIDY <- 1
 DEFAULT_BINWIDTH <- 0.05
 UNDO_SD_THRESHOLD <- 1.5
+# half_win auto-ploidy (see estimate_ploidy_halfwin): a segment cluster at
+# [0.4,0.6]*baseline carrying > HALFWIN_CUTOFF of the genome length marks a
+# whole-genome doubling; recurse up to MAX_DOUBLINGS times (ploidy 1,2,4,8).
+HALFWIN_CUTOFF <- 0.09
+MAX_DOUBLINGS <- 3
 
 # Command-line argument parsing
 parse_arguments <- function() {
@@ -262,39 +267,52 @@ main <- function() {
   opt <- parse_arguments()
 
   cat("Loading copy number data from:", opt$input, "\n")
-
-  # Load data
   data <- load_copynumber_data(opt$input)
 
-  # Resolve ploidy (manual --ploidy, or automatic when --auto-ploidy is set)
-  ploidy <- resolve_ploidy(data, opt)
-  cat("Using tumor ploidy:", ploidy, "\n")
+  # Ploidy-agnostic depth ratio R0 (tumor_ploidy = 1). CBS is run on the RAW
+  # ratio: ploidy is decided AFTER segmentation, from the segment levels, rather
+  # than calibrating the per-window ratio beforehand.
+  norm_factors <- calculate_normalization_factors(data, tumor_ploidy = 1)
+  data <- calculate_depth_ratio(data, norm_factors)
+  filtered_data <- filter_data_for_cbs(data)
 
-  # Optionally write the resolved ploidy to a file so downstream steps can read
-  # it directly instead of parsing it out of the log.
+  cna_data <- prepare_cbs_data(filtered_data)
+  cat("Performing circular binary segmentation (on raw depth ratio)...\n")
+  segment_result <- perform_cbs(cna_data, opt$sample)
+  segs <- segment_result$output
+
+  # Resolve ploidy and the per-copy unit mu from the CBS segment levels.
+  if (isTRUE(opt[["auto-ploidy"]])) {
+    est <- estimate_ploidy_halfwin(segs$seg.mean, segs$num.mark,
+                                   cutoff = HALFWIN_CUTOFF, max_doublings = MAX_DOUBLINGS)
+    ploidy <- est$ploidy; mu <- est$mu
+    cat(sprintf("[auto-ploidy] half_win: ploidy = %d (mu = %.3f, L* = %.3f; half_win chain = %s)\n",
+                ploidy, mu, est$Lstar,
+                paste(sprintf("%.3f", est$half_win_chain), collapse = ";")))
+  } else {
+    ploidy <- opt$ploidy
+    Lstar <- segment_dominant_level(segs$seg.mean, segs$num.mark)
+    mu <- Lstar / ploidy
+    cat(sprintf("[manual] ploidy = %d (mu = L*/ploidy = %.3f, L* = %.3f)\n", ploidy, mu, Lstar))
+  }
+
+  # Optionally write the resolved ploidy for downstream steps.
   if (!is.null(opt[["ploidy-out"]])) {
     writeLines(as.character(ploidy), opt[["ploidy-out"]])
     cat("Wrote resolved ploidy to:", opt[["ploidy-out"]], "\n")
   }
 
-  # Calculate the ploidy-agnostic depth ratio (tumor_ploidy = 1), then calibrate
-  # so the dominant copy-number state sits at the integer ploidy via the peak
-  # comb (see calibrate_depth_ratio).
-  norm_factors <- calculate_normalization_factors(data, tumor_ploidy = 1)
-  data <- calculate_depth_ratio(data, norm_factors)
-  filtered_data <- filter_data_for_cbs(data)
-  filtered_data <- calibrate_depth_ratio(filtered_data, ploidy, opt$binwidth)
+  # Calibrate segment levels to copy-number units (divide by mu). Segmenting the
+  # raw ratio then scaling seg.mean is equivalent to segmenting the calibrated
+  # ratio (CBS boundaries are scale-invariant), but lets mu be derived from the
+  # segments themselves.
+  if (is.finite(mu) && mu > 0) {
+    segment_result$output$seg.mean <- segment_result$output$seg.mean / mu
+  } else {
+    warning("Non-finite mu; writing uncalibrated segment means.")
+  }
 
-  # Prepare data for CBS
-  cna_data <- prepare_cbs_data(filtered_data)
-
-  # Perform CBS
-  cat("Performing circular binary segmentation...\n")
-  segment_result <- perform_cbs(cna_data, opt$sample)
-
-  # Write results
   write_results(segment_result, opt$output)
-
   cat("Analysis complete!\n")
 }
 

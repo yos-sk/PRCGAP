@@ -78,7 +78,7 @@ rule gff_to_bed:
             | grep -v pseudogene \
             | grep gene_name \
             | awk '{{gsub(/[";]/, ""); print $1 "\\t" $4 - 1 "\\t" $5 "\\t" $14 "\\t" $7 "\\t" $10 "\\t" $18}}' \
-            | sort -k1,1 -k2,2n \
+            | sort -S $(( {resources.mem_mb} / 2 < 8192 ? {resources.mem_mb} / 2 : 8192 ))M --parallel={threads} -k1,1 -k2,2n \
             | bgzip -c > {output.bed}
           tabix -p bed {output.bed}
         ) &> {log}

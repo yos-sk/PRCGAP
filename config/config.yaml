@@ -136,6 +136,8 @@ copynumber_hap1_label: Haplotype1
 copynumber_hap2_label: Haplotype2
 copynumber_ploidy_hap1: ""       # leave "" to auto-estimate tumor ploidy; set an integer to override
 copynumber_ploidy_hap2: ""
+copynumber_plot_sex_chrom: true  # force chrX/chrY onto the plot even if absent (false = only when present)
+pileup_no_baq: false
 
 # ---- annotation resources (set to "" to skip the corresponding step) ----
 gff_file: ""                   # tabix-indexed liftoff GFF for SV/SNV/INDEL gene annotation

@@ -116,7 +116,7 @@ rule mut_vcf_index:
         """
         ( zcat {input.vcf} > {output.vcf}.unsorted
           ( grep '^#' {output.vcf}.unsorted
-            grep -v '^#' {output.vcf}.unsorted | sort -k1,1 -k2,2n
+            grep -v '^#' {output.vcf}.unsorted | sort -S $(( {resources.mem_mb} / 2 < 8192 ? {resources.mem_mb} / 2 : 8192 ))M --parallel={threads} -k1,1 -k2,2n
           ) | bgzip -c > {output.vcf}
           tabix -p vcf {output.vcf}
           rm {output.vcf}.unsorted

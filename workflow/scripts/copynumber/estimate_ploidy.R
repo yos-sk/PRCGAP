@@ -122,3 +122,44 @@ estimate_ploidy <- function(depth_ratio, score_margin = 0.05, sub_penalty = 2.5)
   list(ploidy = ploidy, mu = mu, confidence = confidence,
        cn1_score = s1, cn2_score = s2, peaks = peaks)
 }
+
+# ---------------------------------------------------------------------------
+# CBS-segment ploidy (half_win). Preferred over estimate_ploidy(): the ploidy /
+# per-copy unit are decided from the (length-weighted, denoised) CBS segment
+# levels rather than from the raw per-window depth-ratio distribution.
+# ---------------------------------------------------------------------------
+
+# Length-weighted dominant segment level L*, with a robust fallback when the
+# kernel density cannot be estimated (too few / too sparse segments).
+segment_dominant_level <- function(seg_mean, num_mark) {
+  keep <- is.finite(seg_mean) & seg_mean > 0.05
+  lv <- seg_mean[keep]; w <- num_mark[keep]
+  if (length(lv) == 0) return(NA_real_)
+  wf <- w / sum(w)
+  tryCatch({
+    d <- density(lv, weights = wf, bw = "SJ", n = 2048, from = 0.1, to = max(lv) * 1.05)
+    d$x[which.max(d$y)]
+  }, error = function(e) lv[which.max(w)])
+}
+
+# Recursive half_win ploidy. While a distinct segment cluster sits at HALF the
+# current baseline (the whole-genome-doubling signature), halve the baseline and
+# double k. Yields ploidy in {1, 2, 4, 8, ...} and mu = L*/ploidy (depth ratio
+# per single copy). Diploid scattered deletions do NOT concentrate at half, so
+# `half_win` separates diploid from doubled with a wide margin (cutoff ~0.09).
+estimate_ploidy_halfwin <- function(seg_mean, num_mark, cutoff = 0.09, max_doublings = 3) {
+  keep <- is.finite(seg_mean) & seg_mean > 0.05
+  lv <- seg_mean[keep]; w <- num_mark[keep]
+  if (length(lv) == 0) {
+    return(list(ploidy = 1L, mu = NA_real_, Lstar = NA_real_, half_win_chain = numeric(0)))
+  }
+  wf <- w / sum(w)
+  L <- segment_dominant_level(seg_mean, num_mark)
+  k <- 1L; B <- L; chain <- numeric(0)
+  for (i in seq_len(max_doublings)) {
+    hw <- sum(wf[lv > 0.40 * B & lv < 0.60 * B])   # weight at [0.4,0.6]*baseline
+    chain <- c(chain, hw)
+    if (hw > cutoff) { B <- B / 2; k <- k * 2L } else break
+  }
+  list(ploidy = k, mu = L / k, Lstar = L, half_win_chain = chain)
+}

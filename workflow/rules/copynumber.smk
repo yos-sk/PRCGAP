@@ -26,7 +26,8 @@ rule copynumber:
         hap2_label=config.get("copynumber_hap2_label", "Haplotype2"),
         ploidy_hap1=config.get("copynumber_ploidy_hap1", ""),
         ploidy_hap2=config.get("copynumber_ploidy_hap2", ""),
-        censat_bed=config.get("censat_bed", "")
+        censat_bed=config.get("censat_bed", ""),
+        plot_sex_chrom=str(config.get("copynumber_plot_sex_chrom", True))
     threads:
         get_threads("copynumber", 8)
     resources:
@@ -57,5 +58,6 @@ rule copynumber:
             {params.hap2_label} \
             "{params.ploidy_hap1}" \
             "{params.ploidy_hap2}" \
-            "{params.censat_bed}" &> {log}
+            "{params.censat_bed}" \
+            "{params.plot_sex_chrom}" &> {log}
         """

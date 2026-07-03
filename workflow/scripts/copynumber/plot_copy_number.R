@@ -97,7 +97,15 @@ parse_arguments <- function() {
     make_option(c("--hap2_label"),
                 type = "character",
                 default = "Haplotype2",
-                help = "haplotype2 label")
+                help = "haplotype2 label"),
+
+    make_option(c("--plot-sex-chrom"),
+                type = "character",
+                default = "TRUE",
+                help = paste("Force chrX/chrY onto the plot even when absent from",
+                             "the data (estimating length from CHM13). Set to",
+                             "FALSE to show sex chromosomes only when present",
+                             "[default: %default]"))
   )
 
   opt <- parse_args(OptionParser(option_list = option_list))
@@ -575,8 +583,15 @@ main <- function() {
   # Calculate chromosome lengths from copynumber data (max of both haplotypes)
   chr_lengths <- calculate_chr_lengths_from_copynumber(copynumber1, copynumber2)
 
-  # Ensure sex chromosomes are included (estimate from CHM13 if missing)
-  chr_lengths <- ensure_sex_chromosomes(chr_lengths, ref_table1, ref_table2)
+  # Force chrX/chrY onto the plot (estimate length from CHM13 if absent) unless
+  # --plot-sex-chrom is FALSE, in which case they appear only when present in the
+  # data (calculate_chr_offsets drops chromosomes missing from chr_lengths).
+  plot_sex_chrom <- !tolower(opt[["plot-sex-chrom"]]) %in% c("false", "f", "no", "n", "0", "none")
+  if (plot_sex_chrom) {
+    chr_lengths <- ensure_sex_chromosomes(chr_lengths, ref_table1, ref_table2)
+  } else {
+    cat("plot-sex-chrom=FALSE: not forcing chrX/chrY (shown only if present in data)\n")
+  }
   cat("Chromosome lengths calculated\n")
 
   # Calculate chromosome offsets for genome-wide coordinates

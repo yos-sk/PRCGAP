@@ -171,6 +171,7 @@ rule clairs_postprocess_pileup:
     params:
         tumor="{tumor}",
         output_dir="clairs_post/{tumor}",
+        no_baq=config.get("pileup_no_baq", "false"),
     threads:
         get_threads("clairs_postprocess_pileup", 16)
     resources:
@@ -187,7 +188,9 @@ rule clairs_postprocess_pileup:
             {input.reference_fa} \
             {params.tumor} \
             {params.output_dir} \
-            {threads} &> {log}
+            {threads} \
+            {resources.mem_mb} \
+            {params.no_baq} &> {log}
         """
 
 rule clairs_postprocess_haplotype:

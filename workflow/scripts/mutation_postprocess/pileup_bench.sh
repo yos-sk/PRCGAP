@@ -15,6 +15,7 @@ REFERENCE_FA=$3
 SAMPLE=$4
 OUTPUT_DIR=$5
 THREADS=$6
+MEM_MB=${7:-8000}   # 割当メモリ(MB)。sort のバッファ上限に使う
 
 mkdir -p "${OUTPUT_DIR}/pileup/workspace"
 PHLOG="${OUTPUT_DIR}/pileup_bench.phases.log"
@@ -54,7 +55,7 @@ phase mpileup_parallel END
 
 # ---------------- PHASE 2: merge + sort --------------------
 phase merge_sort START
-cat ${OUTPUT_DIR}/pileup/workspace/*.pileup | sort -k 1,1 -k 2,2n > ${OUTPUT_DIR}/pileup/${SAMPLE}_pileup.bed
+cat ${OUTPUT_DIR}/pileup/workspace/*.pileup | sort -S $(( MEM_MB / 2 < 8192 ? MEM_MB / 2 : 8192 ))M --parallel="${THREADS}" -k 1,1 -k 2,2n > ${OUTPUT_DIR}/pileup/${SAMPLE}_pileup.bed
 phase merge_sort END
 
 # ---------------- PHASE 3: bgzip ---------------------------
