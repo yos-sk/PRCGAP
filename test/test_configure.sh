@@ -69,7 +69,7 @@ python3 ../setup_workflow.py \
     --copynumber-plot-sex-chrom false \
     --chm13-censat           resources/reference/chm13v2.0_censat_v2.1.bed.gz \
     --pileup-no-baq true \
-    --singularity-bind $HOME,/hshare1/ZETTAI_path_WA_slash_home_KARA/home/yosakam \
+    --singularity-bind $HOME \
     --output-dir ./HG008 \
     --output config/test_config.yaml \
     --runner run_test.sh \
