@@ -75,7 +75,6 @@ python3 ../setup_workflow.py \
     --runner run_test.sh \
     --workflow-dir ../workflow \
     --images-dir ../images \
-    --profile ../profile/sge \
     --jobs 8 \
     --nanomonsv-get-mem-mb 16000 \
     --deepsomatic-threads 4 \
