@@ -112,7 +112,8 @@ rule nanomonsv_get_hifi:
             {input.assembly_hap2} \
             hifi \
             {params.simple_repeat} \
-            {threads} &> {log}
+            {threads} \
+            {SCRIPTS_DIR} &> {log}
         """
 
 rule nanomonsv_get_ont:
@@ -153,7 +154,8 @@ rule nanomonsv_get_ont:
             {input.assembly_hap2} \
             ont \
             {params.simple_repeat} \
-            {threads} &> {log}
+            {threads} \
+            {SCRIPTS_DIR} &> {log}
         """
 
 # ====================================================================

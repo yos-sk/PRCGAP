@@ -40,7 +40,8 @@ rule bam_refiner_kmer:
             {input.assembly_hap1} \
             {input.assembly_hap2} \
             {params.output_dir} \
-            {threads} &> {log}
+            {threads} \
+            {resources.mem_mb} &> {log}
         """
 
 rule bam_refiner_hifi:

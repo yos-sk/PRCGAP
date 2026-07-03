@@ -78,7 +78,7 @@ rule gff_to_bed:
             | grep -v pseudogene \
             | grep gene_name \
             | awk '{{gsub(/[";]/, ""); print $1 "\\t" $4 - 1 "\\t" $5 "\\t" $14 "\\t" $7 "\\t" $10 "\\t" $18}}' \
-            | sort -k1,1 -k2,2n \
+            | sort -S $(( {resources.mem_mb} / 2 < 8192 ? {resources.mem_mb} / 2 : 8192 ))M --parallel={threads} -k1,1 -k2,2n \
             | bgzip -c > {output.bed}
           tabix -p bed {output.bed}
         ) &> {log}
@@ -90,8 +90,8 @@ def _coordconv_input(wildcards, ref):
     chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
     if _opt_path(chain_key):
         return (
-            f"annotate_sv/{wildcards.tumor}/{wildcards.seqtype}/workspace/"
-            f"{wildcards.tumor}.coordconv_{ref}.bed"
+            "annotate_sv/" + wildcards.tumor + "/" + wildcards.seqtype + "/workspace/"
+            + wildcards.tumor + ".coordconv_" + ref + ".bed"
         )
     return []
 
@@ -105,8 +105,8 @@ def _coordconv_param(wildcards, ref):
     chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
     if _opt_path(chain_key):
         return (
-            f"annotate_sv/{wildcards.tumor}/{wildcards.seqtype}/workspace/"
-            f"{wildcards.tumor}.coordconv_{ref}.bed"
+            "annotate_sv/" + wildcards.tumor + "/" + wildcards.seqtype + "/workspace/"
+            + wildcards.tumor + ".coordconv_" + ref + ".bed"
         )
     return ""
 
@@ -281,7 +281,10 @@ rule reclassify_sv:
     input:
         hifi_annotated="annotate_sv/{tumor}/hifi/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
         ont_annotated="annotate_sv/{tumor}/ont/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
-        copynumber_dir=lambda wc: "copynumber/{}/output".format(wc.tumor),
+        # Depend on the copynumber rule's declared output (the .png) so Snakemake
+        # knows how to build it; the ref.table files are produced alongside it in
+        # the same output dir (see params.copynumber_dir).
+        copynumber_png=lambda wc: "copynumber/{}/output/{}.copynumber.png".format(wc.tumor, wc.tumor),
     output:
         hifi="annotate_sv/{tumor}/{tumor}.hifi.PRCGAP.nanomonsv_results.reclassified.txt",
         ont="annotate_sv/{tumor}/{tumor}.ont.PRCGAP.nanomonsv_results.reclassified.txt",
@@ -289,6 +292,7 @@ rule reclassify_sv:
         "--- Reclassifying SV types for {wildcards.tumor}"
     params:
         normal=lambda wc: get_paired_normal(wc.tumor),
+        copynumber_dir="copynumber/{tumor}/output",
     threads:
         get_threads("reclassify_sv", 1)
     resources:
@@ -302,10 +306,10 @@ rule reclassify_sv:
         ( python3 {ANNOT_DIR}/reclassify_sv_type.py \
               -i {input.hifi_annotated} \
               -o {output.hifi} \
-              -r {input.copynumber_dir}/{params.normal}.hap1.ref.table {input.copynumber_dir}/{params.normal}.hap2.ref.table
+              -r {params.copynumber_dir}/{params.normal}.hap1.ref.table {params.copynumber_dir}/{params.normal}.hap2.ref.table
           python3 {ANNOT_DIR}/reclassify_sv_type.py \
               -i {input.ont_annotated} \
               -o {output.ont} \
-              -r {input.copynumber_dir}/{params.normal}.hap1.ref.table {input.copynumber_dir}/{params.normal}.hap2.ref.table
+              -r {params.copynumber_dir}/{params.normal}.hap1.ref.table {params.copynumber_dir}/{params.normal}.hap2.ref.table
         ) &> {log}
         """

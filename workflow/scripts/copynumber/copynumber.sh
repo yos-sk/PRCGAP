@@ -30,6 +30,11 @@ PLOIDY_HAP2_ARG=${19:-}
 # the cenSat BED is used directly; otherwise it is built from the per-haplotype
 # dna-brnn satellite BEDs used for masking.
 CENSAT_BED=${20:-}
+# Force chrX/chrY onto the plot even when absent from the data (default: true).
+PLOT_SEX_CHROM=${21:-true}
+# Optional CHM13 cenSat BED(.gz) for the plot (empty = skip). The CHM13 chromosome
+# lengths are generated at plot time from the CHM13 reference (see below), not staged.
+CHM13_CENSAT=${22:-}
 
 mkdir -p ${WORK_DIR}
 mkdir -p ${OUTPUT_DIR}
@@ -112,8 +117,10 @@ do
             --ploidy-out ${OUTPUT_DIR}/${TUMOR}.${hap}.ploidy
     fi
 
+    # split_gaps.py derives gap intervals from the ref.table (replaying
+    # copynumber_window.py's index loop), then clips CBS segments spanning gaps.
     python3 "${SCRIPT_DIR}"/copynumber/split_gaps.py \
-        ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv \
+        ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table \
         ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.txt \
         > ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.split.txt
 done
@@ -132,6 +139,11 @@ else
     ANNOTATION=${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz
 fi
 
+# CHM13 chromosome lengths for the plot's terminal margin, generated at plot time
+# from the CHM13 reference (chr/start/end with header; chrM skipped).
+CHM13_LENGTHS=${WORK_DIR}/chm13_chrom_length.txt
+python3 "${SCRIPT_DIR}"/copynumber/chromosome_length.py ${REFERENCE} > ${CHM13_LENGTHS}
+
 Rscript "${SCRIPT_DIR}"/copynumber/plot_copy_number.R \
     -i ${OUTPUT_DIR}/${TUMOR}.hap1.copynumber.tsv \
     -j ${OUTPUT_DIR}/${TUMOR}.hap2.copynumber.tsv \
@@ -146,6 +158,9 @@ Rscript "${SCRIPT_DIR}"/copynumber/plot_copy_number.R \
     -a ${ANNOTATION} \
     -w ${BIN_WIDTH} \
     --hap1_label ${HAP1_LABEL} \
-    --hap2_label ${HAP2_LABEL}
+    --hap2_label ${HAP2_LABEL} \
+    --plot-sex-chrom ${PLOT_SEX_CHROM} \
+    --chm13_censat "${CHM13_CENSAT}" \
+    --chm13_lengths "${CHM13_LENGTHS}"
 
 echo ${?}

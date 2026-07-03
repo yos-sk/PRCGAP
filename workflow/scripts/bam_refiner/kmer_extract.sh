@@ -10,6 +10,7 @@ HAP1_CONTIG=$2
 HAP2_CONTIG=$3
 OUTPUT_DIR=$4
 THREAD=${5:-8}
+MEM_MB=${6:-8000}   # 割当メモリ(MB)。sort のバッファ上限に使う
 
 # Step 2 + Step 3 of run_refine.sh — depend only on the assembly,
 # so they are computed once per sample and shared across HiFi/ONT.
@@ -39,14 +40,14 @@ done
 bam_refiner locate-kmers \
     -i ${WORK_DIR}/meryl/hap1.cnt.uniq.tsv.gz \
     -f ${HAP1_CONTIG} \
-    -k 21 | sort -k 1,1 -k 2,2n > ${OUTPUT_DIR}/hap1_cnt_kmerposition.bed
+    -k 21 | sort -S $(( MEM_MB / 2 < 8192 ? MEM_MB / 2 : 8192 ))M --parallel="${THREAD}" -k 1,1 -k 2,2n > ${OUTPUT_DIR}/hap1_cnt_kmerposition.bed
 bgzip -f ${OUTPUT_DIR}/hap1_cnt_kmerposition.bed
 tabix -p bed ${OUTPUT_DIR}/hap1_cnt_kmerposition.bed.gz
 
 bam_refiner locate-kmers \
     -i ${WORK_DIR}/meryl/hap2.cnt.uniq.tsv.gz \
     -f ${HAP2_CONTIG} \
-    -k 21 | sort -k 1,1 -k 2,2n > ${OUTPUT_DIR}/hap2_cnt_kmerposition.bed
+    -k 21 | sort -S $(( MEM_MB / 2 < 8192 ? MEM_MB / 2 : 8192 ))M --parallel="${THREAD}" -k 1,1 -k 2,2n > ${OUTPUT_DIR}/hap2_cnt_kmerposition.bed
 bgzip -f ${OUTPUT_DIR}/hap2_cnt_kmerposition.bed
 tabix -p bed ${OUTPUT_DIR}/hap2_cnt_kmerposition.bed.gz
 

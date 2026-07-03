@@ -173,6 +173,7 @@ rule deepsomatic_postprocess_pileup:
     params:
         tumor="{tumor}",
         output_dir="deepsomatic_post/{tumor}",
+        no_baq=config.get("pileup_no_baq", "false"),
     threads:
         get_threads("deepsomatic_postprocess_pileup", 16)
     resources:
@@ -189,7 +190,9 @@ rule deepsomatic_postprocess_pileup:
             {input.reference_fa} \
             {params.tumor} \
             {params.output_dir} \
-            {threads} &> {log}
+            {threads} \
+            {resources.mem_mb} \
+            {params.no_baq} &> {log}
         """
 
 rule deepsomatic_postprocess_haplotype:

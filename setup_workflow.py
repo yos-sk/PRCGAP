@@ -49,9 +49,14 @@ _RESOURCE_DEFAULTS = [
     ("coordconv_sv", 1, 8000),
     ("annotate_sv", 1, 16000),
     ("reclassify_sv", 1, 16000),
+    ("gff_to_bed", 1, 8000),
     ("prep_mut", 1, 8000),
     ("coordconv_mut", 1, 8000),
     ("annotate_mut", 1, 16000),
+    ("indel_hap_reference", 1, 8000),
+    ("mut_vcf_index", 1, 8000),
+    ("bed2vcf_mut", 1, 8000),
+    ("liftvcf_mut", 1, 16000),
 ]
 
 
@@ -154,6 +159,10 @@ def create_config(args):
         "copynumber_hap2_label": args.copynumber_hap2_label,
         "copynumber_ploidy_hap1": args.copynumber_ploidy_hap1,
         "copynumber_ploidy_hap2": args.copynumber_ploidy_hap2,
+        "copynumber_plot_sex_chrom": args.copynumber_plot_sex_chrom,
+        "chm13_censat": _abs(args.chm13_censat) or "",
+        # ---- pileup (mutation postprocess) params ----
+        "pileup_no_baq": args.pileup_no_baq,
         # ---- annotation resources (optional) ----
         "chain_to_grch38": _abs(args.chain_to_grch38) or "",
         "chain_to_chm13": _abs(args.chain_to_chm13) or "",
@@ -341,6 +350,21 @@ Examples:
     parser.add_argument("--copynumber-ploidy-hap2", default="",
                         help="manual hap2 tumor ploidy override; leave empty to "
                              "auto-estimate")
+    parser.add_argument("--copynumber-plot-sex-chrom", default="true",
+                        choices=["true", "false"],
+                        help="force chrX/chrY onto the copy-number plot even when "
+                             "absent from the data (default: true; set false to "
+                             "show sex chromosomes only when present)")
+    parser.add_argument("--chm13-censat", default="",
+                        help="CHM13 cenSat v2.1 BED (.gz) for the copy-number plot; "
+                             "fills assembly gaps with reference satellite (optional). "
+                             "CHM13 chromosome lengths are derived at plot time from "
+                             "the --chm13-fasta via chromosome_length.py.")
+    parser.add_argument("--pileup-no-baq", default="false",
+                        choices=["true", "false"],
+                        help="pass --no-BAQ to samtools mpileup in the "
+                             "clairs/deepsomatic pileup step (default: false). "
+                             "true skips BAQ computation, reducing memory/CPU.")
 
     # ---------- annotation resources (all optional) ----------
     ann_group = parser.add_argument_group(

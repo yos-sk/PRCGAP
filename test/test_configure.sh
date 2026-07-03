@@ -27,6 +27,22 @@
 
 set -euo pipefail
 
+# Generate the sample sheet (one tumor-normal pair sharing one assembly).
+# --no-check-exists: configure does not require the multi-GB read/asm files to
+# be staged yet. --no-absolutize: keep the resource paths relative to test/.
+python3 ../set_sample_sheet.py \
+    --tumor  HG008T \
+    --tumor-ont  ../resources/reads/ont/HG008T.chr20.ont.bam \
+    --tumor-hifi ../resources/reads/hifi/HG008T.chr20.hifi.bam \
+    --normal HG008N \
+    --normal-ont  ../resources/reads/ont/HG008N.chr20.ont.bam \
+    --normal-hifi ../resources/reads/hifi/HG008N.chr20.hifi.bam \
+    --assembly-hap1 ../resources/asm/HG008N.hap1.chr20.fa \
+    --assembly-hap2 ../resources/asm/HG008N.hap2.chr20.fa \
+    --no-absolutize --no-check-exists \
+    --output config/test_samples.tsv \
+    --force
+
 python3 ../setup_workflow.py \
     --samplesheet config/test_samples.tsv \
     --chm13-fasta resources/reference/chm13v2.0_maskedY_rCRS.fa \
@@ -50,45 +66,45 @@ python3 ../setup_workflow.py \
     --gnomad-bed             resources/annotation/gnomad.v4.1.sv.sites.bed.gz \
     --gnomad-vcf             resources/annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz \
     --grch38-fasta           resources/reference/GRCh38.d1.vd1.fa \
-    --singularity-bind /lustre1/home/yosakam2,/home/yosakam2 \
-    --bam-refiner-kmer-threads          8 --bam-refiner-kmer-mem-mb           16000 \
-    --bam-refiner-threads               8 --bam-refiner-mem-mb                16000 \
-    --assembly-bwa-index-threads        1 --assembly-bwa-index-mem-mb          8000 \
-    --methylation-threads               8 --methylation-mem-mb                16000 \
-    --copynumber-threads                8 --copynumber-mem-mb                 16000 \
-    --nanomonsv-parse-threads           8 --nanomonsv-parse-mem-mb            16000 \
-    --nanomonsv-get-threads             8 --nanomonsv-get-mem-mb              32000 \
-    --nanomonsv-postprocess-threads     1 --nanomonsv-postprocess-mem-mb       8000 \
-    --nanomonsv-insert-classify-threads 8 --nanomonsv-insert-classify-mem-mb  16000 \
-    --nanomonsv-connect-threads         1 --nanomonsv-connect-mem-mb           8000 \
-    --nanomonsv-merge-threads           1 --nanomonsv-merge-mem-mb             8000 \
-    --clairs-threads                    8 --clairs-mem-mb                     16000 \
-    --deepsomatic-threads               8 --deepsomatic-mem-mb                16000 \
-    --clairs-postprocess-threads        1 --clairs-postprocess-mem-mb          8000 \
-    --clairs-postprocess-split-threads  1 --clairs-postprocess-split-mem-mb    8000 \
-    --clairs-postprocess-realign-threads        8 --clairs-postprocess-realign-mem-mb        16000 \
-    --clairs-postprocess-pileup-threads         4 --clairs-postprocess-pileup-mem-mb         16000 \
-    --clairs-postprocess-haplotype-threads      4 --clairs-postprocess-haplotype-mem-mb      16000 \
-    --deepsomatic-postprocess-threads          1 --deepsomatic-postprocess-mem-mb            8000 \
-    --deepsomatic-postprocess-split-threads    1 --deepsomatic-postprocess-split-mem-mb      8000 \
-    --deepsomatic-postprocess-realign-threads  8 --deepsomatic-postprocess-realign-mem-mb   16000 \
-    --deepsomatic-postprocess-pileup-threads   4 --deepsomatic-postprocess-pileup-mem-mb    16000 \
-    --deepsomatic-postprocess-haplotype-threads 4 --deepsomatic-postprocess-haplotype-mem-mb 16000 \
-    --prep-sv-threads        1 --prep-sv-mem-mb         4000 \
-    --coordconv-sv-threads   1 --coordconv-sv-mem-mb    4000 \
-    --annotate-sv-threads    1 --annotate-sv-mem-mb     8000 \
-    --reclassify-sv-threads  1 --reclassify-sv-mem-mb   8000 \
-    --prep-mut-threads       1 --prep-mut-mem-mb        4000 \
-    --coordconv-mut-threads  1 --coordconv-mut-mem-mb   4000 \
-    --annotate-mut-threads   1 --annotate-mut-mem-mb    8000 \
+    --copynumber-plot-sex-chrom false \
+    --chm13-censat           resources/reference/chm13v2.0_censat_v2.1.bed.gz \
+    --pileup-no-baq true \
+    --singularity-bind $HOME \
     --output-dir ./HG008 \
     --output config/test_config.yaml \
     --runner run_test.sh \
     --workflow-dir ../workflow \
     --images-dir ../images \
+    --profile ../profile/sge \
     --jobs 8 \
+    --nanomonsv-get-mem-mb 16000 \
+    --deepsomatic-threads 4 \
+    --deepsomatic-mem-mb 32000 \
+    --clairs-mem-mb 20000 \
+    --bam-refiner-mem-mb 20000 \
+    --bam-refiner-kmer-mem-mb 20000 \
+    --methylation-mem-mb 24000 \
+    --copynumber-mem-mb 24000 \
+    --nanomonsv-parse-mem-mb 12000 \
+    --nanomonsv-insert-classify-mem-mb 12000 \
+    --nanomonsv-connect-mem-mb 8000 \
+    --nanomonsv-merge-mem-mb 8000 \
+    --nanomonsv-postprocess-mem-mb 8000 \
+    --clairs-postprocess-realign-mem-mb 10000 \
+    --deepsomatic-postprocess-realign-mem-mb 10000 \
+    --clairs-postprocess-pileup-mem-mb 16000 \
+    --deepsomatic-postprocess-pileup-mem-mb 16000 \
+    --clairs-postprocess-haplotype-mem-mb 8000 \
+    --deepsomatic-postprocess-haplotype-mem-mb 8000 \
+    --assembly-bwa-index-mem-mb 16000 \
+    --bam-refiner-kmer-threads 4 \
+    --bam-refiner-threads 4 \
+    --methylation-threads 4 \
+    --copynumber-threads 4 \
+    --nanomonsv-parse-threads 4 \
+    --nanomonsv-get-threads 4 \
+    --nanomonsv-insert-classify-threads 4 \
+    --clairs-threads 4 \
+    --clairs-postprocess-realign-threads 4 \
+    --deepsomatic-postprocess-realign-threads 4 \
     --force
-# To make run_test.sh build only a subset by default (e.g. copy number alone),
-# add a --targets line above, before --force. Targets are relative to
-# --output-dir (./HG008); the tumor sample is HG008T:
-#   --targets copynumber/HG008T/output \

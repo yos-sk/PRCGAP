@@ -298,6 +298,14 @@ properties:
     type: ["string", "integer"]
     description: manual hap2 tumor ploidy override; empty string to auto-estimate
 
+  copynumber_plot_sex_chrom:
+    type: ["boolean", "string"]
+    description: force chrX/chrY onto the copy-number plot even when absent from the data (true/false)
+
+  chm13_censat:
+    type: string
+    description: CHM13 cenSat v2.1 BED (.gz) for the copy-number plot gap-fill (optional; empty to skip)
+
   sex:
     type: string
     description: sex of the sample (female or male)
