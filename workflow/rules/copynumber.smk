@@ -27,7 +27,8 @@ rule copynumber:
         ploidy_hap1=config.get("copynumber_ploidy_hap1", ""),
         ploidy_hap2=config.get("copynumber_ploidy_hap2", ""),
         censat_bed=config.get("censat_bed", ""),
-        plot_sex_chrom=str(config.get("copynumber_plot_sex_chrom", True))
+        plot_sex_chrom=str(config.get("copynumber_plot_sex_chrom", True)),
+        chm13_censat=config.get("chm13_censat", "")
     threads:
         get_threads("copynumber", 8)
     resources:
@@ -59,5 +60,6 @@ rule copynumber:
             "{params.ploidy_hap1}" \
             "{params.ploidy_hap2}" \
             "{params.censat_bed}" \
-            "{params.plot_sex_chrom}" &> {log}
+            "{params.plot_sex_chrom}" \
+            "{params.chm13_censat}" &> {log}
         """

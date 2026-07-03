@@ -12,10 +12,10 @@ library(slider)
 library(viridis)
 library(ggnewscale)
 
-# Peak-comb calibration helpers (detect_peaks, peak_comb_fit). estimate_ploidy.R
-# lives alongside this script; resolve this script's own directory so it can be
-# sourced regardless of the current working directory (the workflow invokes
-# plot_copy_number.R by absolute path, not from the scripts/ directory).
+# Peak-comb calibration helper (detect_peaks). estimate_ploidy.R lives alongside
+# this script; resolve this script's own directory so it can be sourced
+# regardless of the current working directory (the workflow invokes this script
+# by absolute path, not from the scripts/ directory).
 get_script_dir <- function() {
   file_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
   if (length(file_arg) > 0) {
@@ -37,6 +37,13 @@ SEGMENT_COLOR <- "#B63679"  # Bright red for CBS segments
 ANNOTATION_COLOR <- "#D3D3D3"
 POINT_ALPHA <- 0.3
 POINT_SIZE <- 0.15
+
+# Window size of the copy-number bin axis (bp); the ref.table-derived annotation
+# coordinates are laid out at this resolution, matching copynumber_window.py.
+WINDOW_SIZE <- 50000
+# Gap-detection thresholds (in bins), identical to mutation_map/plot_genomic_overview.R.
+GAP_THRESHOLD <- 5                          # min inter-/leading-gap size to fill
+TRAILING_GAP_THRESHOLD <- 1000000 / 50000   # 1 Mb in bins; trailing gap must exceed this
 
 # CHM13 sex chromosome lengths (bp)
 CHM13_CHRX_LENGTH_BP <- 154259566
@@ -79,7 +86,18 @@ parse_arguments <- function() {
                 help = "Input reference-contig table (hap2)"),
     make_option(c("-a", "--annotation"),
                 type = "character",
-                help = "Annotation file"),
+                help = "Annotation file (contig-based cenSat BED, .gz)"),
+    make_option(c("--chm13_censat"),
+                type = "character",
+                default = NULL,
+                help = paste("Optional CHM13 cenSat v2.1 BED (.gz) used to fill",
+                             "assembly gaps with reference satellite")),
+    make_option(c("--chm13_lengths"),
+                type = "character",
+                default = NULL,
+                help = paste("Optional CHM13 chromosome lengths (chr/start/end,",
+                             "header) used to extend each chromosome to its CHM13",
+                             "end so the unaligned terminal margin is shown")),
     make_option(c("-c", "--max_copy"),
                 type = "numeric",
                 default = DEFAULT_MAX_COPY,
@@ -328,63 +346,218 @@ load_cbs_data <- function(cbs_file, chr_info) {
   return(CNA_data)
 }
 
-# Transform annotation data to chromosome coordinates using reference table
-# Then scale to bin coordinates to match copynumber data
-transform_annotation_to_chr_coords <- function(annotation_file, ref_table, chr_info, copynumber_data) {
-  # Define chromosome order
+# --- Centromere/satellite annotation logic (ported from
+# mutation_map/scripts/plot_genomic_overview.R so the cen/sat placement is
+# identical between the two figures) -----------------------------------------
+#
+# The copy-number x-axis is a bin index built by copynumber_window.py at
+# WINDOW_SIZE bp/bin, with the inter-contig gaps preserved. The annotation is
+# therefore laid out on the same gap-aware bin axis derived from the ref.table,
+# NOT by a naive bp-per-bin rescaling.
+
+# Per-contig cumulative bin start derived from the ref.table. Each chromosome's
+# contigs are placed at WINDOW_SIZE bp/bin, with the leading and inter-contig
+# gaps (in CHM13 coordinates) inserted. Mirrors process_ref_table in
+# plot_genomic_overview.R; columns are renamed to that script's internal layout
+# (col2/col3 = contig start/end, val1/val2 = reference start/end) so the
+# downstream functions are verbatim ports.
+process_ref_table <- function(ref_table) {
+  ref_table %>%
+    transmute(name = name, col2 = contig_start, col3 = contig_end,
+              strand = strand, chr = chr, val1 = ref_start, val2 = ref_end) %>%
+    group_by(chr) %>%
+    mutate(
+      is_first = row_number() == 1,
+      val2_prev = lag(val2),
+      t_gap = ifelse(is_first, val1 / WINDOW_SIZE,
+                     pmax(val1 - val2_prev, 0, na.rm = TRUE) / WINDOW_SIZE),
+      len = col3 - col2
+    ) %>%
+    mutate(start = ifelse(is_first, t_gap,
+                          cumsum(t_gap) + lag(cumsum(len)) / WINDOW_SIZE)) %>%
+    ungroup()
+}
+
+# Place the contig-based cenSat annotation onto the bin axis. Annotation outside
+# a contig's mapped range is clipped; satellite that does not assemble (typically
+# the centromeric arrays) lands in the gaps and is recovered separately by
+# process_chm13_gap_annotation. Returns start_pos/end_pos (bins) + chr.
+process_annotation <- function(annotation_data, df) {
+  contigs <- df$name
+
+  annotation_data %>%
+    filter(V1 %in% contigs) %>%
+    left_join(df %>% select(name, col2, col3, strand, start, chr),
+              by = c("V1" = "name")) %>%
+    filter(V3 > col2 & V2 < col3) %>%  # annotation must overlap mapped range
+    mutate(
+      V2 = pmax(V2, col2),  # clip to mapped range
+      V3 = pmin(V3, col3)
+    ) %>%
+    mutate(
+      start_pos = ifelse(
+        strand == "+",
+        start + (V2 - col2 + 1) / WINDOW_SIZE,
+        start + (col3 - V3 + 1) / WINDOW_SIZE
+      ),
+      end_pos = ifelse(
+        strand == "+",
+        start + (V3 - col2) / WINDOW_SIZE,
+        start + (col3 - V2) / WINDOW_SIZE
+      )
+    )
+}
+
+# Unassigned regions derived from the ref.table (the assembly-to-reference map),
+# NOT from CBS coverage. Returns one row per gap with the plot span [x_lo, x_hi]
+# and the matching CHM13 span [c_lo, c_hi] (WINDOW_SIZE bp/bin), plus a `kind`
+# (lead/inter/trail/full). Verbatim port from plot_genomic_overview.R.
+compute_ref_gaps <- function(df, chr_name, chr_max_pos = NULL) {
+  empty <- data.frame(x_lo = numeric(), x_hi = numeric(),
+                      c_lo = numeric(), c_hi = numeric(), kind = character())
+  segs <- df %>% ungroup() %>% filter(chr == chr_name) %>%
+    mutate(seg_left = start, seg_right = start + len / WINDOW_SIZE) %>%
+    arrange(seg_left)
+  n <- nrow(segs)
+
+  rows <- list()
+  if (n == 0) {
+    # Chromosome absent from the ref.table: treat the whole span as unassigned.
+    if (!is.null(chr_max_pos) && chr_max_pos > 0) {
+      rows[[1]] <- data.frame(x_lo = 0, x_hi = chr_max_pos,
+                              c_lo = 0, c_hi = chr_max_pos * WINDOW_SIZE, kind = "full")
+    }
+  } else {
+    # Leading gap: CHM13 [0, val1 of first segment].
+    if (segs$seg_left[1] > 0) {
+      rows[[length(rows) + 1]] <- data.frame(x_lo = 0, x_hi = segs$seg_left[1],
+                                             c_lo = 0, c_hi = segs$val1[1], kind = "lead")
+    }
+    # Inter-segment gaps: CHM13 [val2 of left contig, val1 of right contig].
+    if (n >= 2) {
+      for (k in 1:(n - 1)) {
+        if (segs$seg_left[k + 1] > segs$seg_right[k]) {
+          rows[[length(rows) + 1]] <- data.frame(
+            x_lo = segs$seg_right[k], x_hi = segs$seg_left[k + 1],
+            c_lo = segs$val2[k], c_hi = segs$val1[k + 1], kind = "inter")
+        }
+      }
+    }
+    # Trailing gap: extend CHM13 linearly from the last contig to the chromosome max.
+    if (!is.null(chr_max_pos) && chr_max_pos > segs$seg_right[n]) {
+      rows[[length(rows) + 1]] <- data.frame(
+        x_lo = segs$seg_right[n], x_hi = chr_max_pos,
+        c_lo = segs$val2[n], c_hi = segs$val2[n] + (chr_max_pos - segs$seg_right[n]) * WINDOW_SIZE,
+        kind = "trail")
+    }
+  }
+  if (length(rows) == 0) return(empty)
+
+  bind_rows(rows) %>%
+    mutate(width = x_hi - x_lo) %>%
+    filter((kind == "trail" & width > TRAILING_GAP_THRESHOLD) |
+           (kind != "trail" & width > GAP_THRESHOLD)) %>%
+    select(x_lo, x_hi, c_lo, c_hi, kind)
+}
+
+# Fill the assembly gaps with cenSat annotation taken from the CHM13 reference
+# (cenSat v2.1) at the gap's CHM13 coordinates. The centromeric arrays usually
+# fail to assemble, so they sit in the gaps between contigs; each gap maps a
+# known CHM13 interval [c_lo, c_hi] linearly onto the plot at WINDOW_SIZE bp/bin.
+# The 'ct' (centromeric transition / context) track is excluded. Verbatim port
+# from plot_genomic_overview.R. Returns start_pos/end_pos (bins) + chr.
+process_chm13_gap_annotation <- function(chm13_annotation, df, chr_name, chr_max_pos = NULL) {
+  empty <- data.frame(start_pos = numeric(), end_pos = numeric(), chr = character())
+  if (is.null(chm13_annotation) || nrow(chm13_annotation) == 0) return(empty)
+
+  gaps <- compute_ref_gaps(df, chr_name, chr_max_pos)
+  if (nrow(gaps) == 0) return(empty)
+
+  ann <- chm13_annotation %>% filter(V1 == chr_name, !grepl("^ct", V4, ignore.case = TRUE))
+  if (nrow(ann) == 0) return(empty)
+
+  out <- list()
+  for (i in seq_len(nrow(gaps))) {
+    g <- gaps[i, ]
+    seg <- ann %>%
+      filter(V3 > g$c_lo & V2 < g$c_hi) %>%
+      mutate(cs = pmax(V2, g$c_lo), ce = pmin(V3, g$c_hi),
+             start_pos = g$x_lo + (cs - g$c_lo) / WINDOW_SIZE,
+             end_pos   = g$x_lo + (ce - g$c_lo) / WINDOW_SIZE) %>%
+      filter(end_pos > start_pos) %>% select(start_pos, end_pos)
+    if (nrow(seg) > 0) out[[length(out) + 1]] <- seg
+  }
+  if (length(out) == 0) return(empty)
+  bind_rows(out) %>% mutate(chr = chr_name)
+}
+
+# Plot-x position (bins) of the CHM13 chromosome end (length len_bp) for one
+# haplotype's processed ref.table. The last contig maps CHM13 val2 to plot
+# seg_right; beyond it the chromosome is extended at WINDOW_SIZE bp/bin up to the
+# CHM13 length, so the unassembled q-terminal tail is shown as an empty margin
+# rather than truncated. Returns 0 when the chromosome has no contig on this
+# haplotype (do not extend an absent chromosome). Verbatim port from
+# plot_genomic_overview.R.
+chm13_plot_extent <- function(df, chr_name, len_bp) {
+  segs <- df %>% ungroup() %>% filter(chr == chr_name) %>%
+    mutate(seg_left = start, seg_right = start + len / WINDOW_SIZE) %>%
+    arrange(seg_left)
+  n <- nrow(segs)
+  if (n == 0) return(0)
+  max(segs$seg_right[n] + (len_bp - segs$val2[n]) / WINDOW_SIZE, segs$seg_right[n])
+}
+
+# Extend chr_lengths (bins) so each chromosome spans its full CHM13 length,
+# reserving the unaligned terminal margin. Per chromosome the length becomes the
+# larger of the copynumber data extent and the CHM13 end position across both
+# haplotypes. Chromosomes absent from chm13_len_bp (or with no contigs) keep
+# their data-derived length.
+extend_chr_lengths_to_chm13 <- function(chr_lengths, ref_table1, ref_table2, chm13_len_bp) {
+  if (is.null(chm13_len_bp)) return(chr_lengths)
+  df1 <- process_ref_table(ref_table1)
+  df2 <- process_ref_table(ref_table2)
+  for (cn in names(chr_lengths)) {
+    if (cn %in% names(chm13_len_bp) && !is.na(chm13_len_bp[[cn]])) {
+      ext1 <- chm13_plot_extent(df1, cn, chm13_len_bp[[cn]])
+      ext2 <- chm13_plot_extent(df2, cn, chm13_len_bp[[cn]])
+      chr_lengths[cn] <- max(chr_lengths[cn], ext1, ext2, na.rm = TRUE)
+    }
+  }
+  return(chr_lengths)
+}
+
+# Build the cen/sat annotation rectangles (genome-wide bin coordinates) by
+# combining the contig-based annotation with the CHM13 gap-fill, using the same
+# ref.table-derived layout as mutation_map.
+transform_annotation_to_chr_coords <- function(annotation_file, ref_table, chr_info,
+                                                chm13_annotation = NULL) {
   chr_levels <- c(paste0("chr", 1:22), "chrX", "chrY")
 
-  contigs <- ref_table$name
+  df <- process_ref_table(ref_table)
 
-  # Calculate scaling factors: for each chromosome, find bp_per_bin
-  # Using copynumber data max position and reference table max position
-  copynumber_max <- copynumber_data %>%
-    group_by(chr) %>%
-    summarize(max_bin = max(pos, na.rm = TRUE), .groups = "drop")
+  # Contig-based annotation placed on the bin axis.
+  annotation_raw <- read.table(gzfile(annotation_file), sep = "\t",
+                               header = FALSE, comment.char = "")
+  contig_annot <- process_annotation(annotation_raw, df) %>%
+    select(chr, start_pos, end_pos)
 
-  ref_max <- ref_table %>%
-    group_by(chr) %>%
-    summarize(max_bp = max(ref_end, na.rm = TRUE), .groups = "drop")
+  # CHM13 gap-fill: recover satellite that lands in the unassigned gaps.
+  gap_annot <- lapply(chr_info$chr_order, function(cn) {
+    process_chm13_gap_annotation(chm13_annotation, df, cn,
+                                 chr_max_pos = chr_info$chr_lengths[[cn]])
+  })
+  gap_annot <- bind_rows(gap_annot)
 
-  scale_factors <- copynumber_max %>%
-    inner_join(ref_max, by = "chr") %>%
-    mutate(bp_per_bin = max_bp / max_bin)
-
-  # Read annotation file and select only first 3 columns
-  annotation_raw <- read.table(gzfile(annotation_file), sep = "\t", header = FALSE, comment.char = "")
-  annotation_data <- annotation_raw[, 1:3]
-  colnames(annotation_data) <- c("contig", "start", "end")
-
-  # Filter to contigs in reference table and join
-  transformed <- annotation_data %>%
-    filter(contig %in% contigs) %>%
-    inner_join(ref_table, by = c("contig" = "name"), relationship = "many-to-many") %>%
-    filter(start >= contig_start & end <= contig_end) %>%
-    mutate(
-      # Transform coordinates based on strand (to chromosome bp)
-      chr_start_bp = ifelse(
-        strand == "+",
-        ref_start + (start - contig_start),
-        ref_end - (end - contig_start)
-      ),
-      chr_end_bp = ifelse(
-        strand == "+",
-        ref_start + (end - contig_start),
-        ref_end - (start - contig_start)
-      ),
-      chr = factor(chr, levels = chr_levels)
-    ) %>%
+  transformed <- bind_rows(contig_annot, gap_annot) %>%
+    mutate(chr = factor(chr, levels = chr_levels)) %>%
     filter(chr %in% chr_info$chr_order) %>%
-    # Join with scale factors to convert bp to bin coordinates
-    left_join(scale_factors, by = "chr") %>%
     mutate(
-      chr_start = chr_start_bp / bp_per_bin,
-      chr_end = chr_end_bp / bp_per_bin,
-      genome_start = chr_start + chr_info$offsets[as.character(chr)],
-      genome_end = chr_end + chr_info$offsets[as.character(chr)]
+      genome_start = start_pos + chr_info$offsets[as.character(chr)],
+      genome_end = end_pos + chr_info$offsets[as.character(chr)]
     )
 
-  cat("  Final annotation entries:", nrow(transformed), "\n")
+  cat("  Final annotation entries:", nrow(transformed),
+      "(contig:", nrow(contig_annot), "+ CHM13 gap-fill:", nrow(gap_annot), ")\n")
 
   return(transformed)
 }
@@ -510,7 +683,8 @@ create_copynumber_plot <- function(filtered_data, cbs_data, annotation_data,
 # Process one haplotype (load data and create plot)
 process_haplotype <- function(copynumber_data, cbs_file, ref_table,
                               annotation_file, haplotype_name, max_copy,
-                              chr_info, plot_theme, show_legend = FALSE) {
+                              chr_info, plot_theme, show_legend = FALSE,
+                              chm13_annotation = NULL) {
   cat("Processing", haplotype_name, "...\n")
 
   # Load CBS data with genome-wide coordinates
@@ -519,8 +693,10 @@ process_haplotype <- function(copynumber_data, cbs_file, ref_table,
   # Add genome-wide coordinates and rolling mean
   filtered_data <- filter_and_transform_copynumber(copynumber_data, chr_info)
 
-  # Transform annotation data to chromosome coordinates (scaled to bin coordinates)
-  annotation_data <- transform_annotation_to_chr_coords(annotation_file, ref_table, chr_info, copynumber_data)
+  # Transform annotation to bin coordinates (ref.table-derived layout, with
+  # CHM13 gap-fill); identical placement logic to mutation_map.
+  annotation_data <- transform_annotation_to_chr_coords(annotation_file, ref_table,
+                                                        chr_info, chm13_annotation)
 
   cat("Annotation data loaded:", nrow(annotation_data), "regions\n")
   cat("Filtered data points:", nrow(filtered_data), "\n")
@@ -580,6 +756,23 @@ main <- function() {
   ref_table1 <- load_reference_table(opt$table1)
   ref_table2 <- load_reference_table(opt$table2)
 
+  # Optional CHM13 cenSat v2.1 BED used to fill assembly gaps with reference satellite
+  chm13_annotation <- NULL
+  if (!is.null(opt$chm13_censat) && nzchar(opt$chm13_censat)) {
+    cat("Loading CHM13 cenSat for gap-fill:", opt$chm13_censat, "\n")
+    chm13_annotation <- read.table(gzfile(opt$chm13_censat), sep = "\t",
+                                   header = FALSE, comment.char = "")
+  }
+
+  # Optional CHM13 chromosome lengths used to extend each chromosome to its CHM13
+  # end (reserving the unaligned terminal margin).
+  chm13_len_bp <- NULL
+  if (!is.null(opt$chm13_lengths) && nzchar(opt$chm13_lengths)) {
+    cat("Loading CHM13 chromosome lengths:", opt$chm13_lengths, "\n")
+    cl <- read.table(opt$chm13_lengths, sep = "\t", header = TRUE)
+    chm13_len_bp <- setNames(as.numeric(cl$end), as.character(cl$chr))
+  }
+
   # Calculate chromosome lengths from copynumber data (max of both haplotypes)
   chr_lengths <- calculate_chr_lengths_from_copynumber(copynumber1, copynumber2)
 
@@ -592,6 +785,9 @@ main <- function() {
   } else {
     cat("plot-sex-chrom=FALSE: not forcing chrX/chrY (shown only if present in data)\n")
   }
+
+  # Extend to full CHM13 length so the unaligned terminal margin is shown.
+  chr_lengths <- extend_chr_lengths_to_chm13(chr_lengths, ref_table1, ref_table2, chm13_len_bp)
   cat("Chromosome lengths calculated\n")
 
   # Calculate chromosome offsets for genome-wide coordinates
@@ -612,7 +808,8 @@ main <- function() {
     max_copy = opt$max_copy,
     chr_info = chr_info,
     plot_theme = plot_theme,
-    show_legend = TRUE
+    show_legend = TRUE,
+    chm13_annotation = chm13_annotation
   )
 
   # Process haplotype 2
@@ -624,7 +821,8 @@ main <- function() {
     haplotype_name = opt$hap2_label,
     max_copy = opt$max_copy,
     chr_info = chr_info,
-    plot_theme = plot_theme
+    plot_theme = plot_theme,
+    chm13_annotation = chm13_annotation
   )
 
   # Save combined plot

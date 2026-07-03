@@ -6,7 +6,7 @@ library(DNAcopy)
 library(tidyverse)
 library(optparse)
 
-# Score-only comb-coverage ploidy estimator (estimate_ploidy()).
+# CBS-segment ploidy estimator (estimate_ploidy_halfwin(), segment_dominant_level()).
 # estimate_ploidy.R lives alongside this script; resolve this script's own
 # directory so it can be sourced regardless of the current working directory
 # (the workflow invokes cbs.R by absolute path, not from the scripts/ directory).
@@ -132,82 +132,6 @@ filter_data_for_cbs <- function(data) {
     stop("Error: No data remaining after filtering")
   }
 
-  return(filtered_data)
-}
-
-# Calculate mode value of depth ratio distribution
-calculate_mode_depth_ratio <- function(data, binwidth) {
-  # Create histogram to find mode
-  positive_data <- data[data$depth_ratio > 0, ]
-
-  if (nrow(positive_data) == 0) {
-    stop("Error: No positive depth ratios found")
-  }
-
-  hist_plot <- ggplot(positive_data, aes(x = depth_ratio)) +
-    geom_histogram(binwidth = binwidth)
-  hist_data <- ggplot_build(hist_plot)$data[[1]]
-
-  cat("Histogram data:\n")
-  print(hist_data)
-
-  # Get mode value only from bins where x > 0
-  hist_data_positive <- hist_data[hist_data$x > 0, ]
-  mode_value <- hist_data_positive$x[which.max(hist_data_positive$count)]
-
-  cat("Mode value:", mode_value, "\n")
-
-  return(mode_value)
-}
-
-# Resolve the tumor ploidy to use: either the manual --ploidy, or, when
-# --auto-ploidy is set, the value estimated by estimate_ploidy() from the
-# ploidy-agnostic (tumor_ploidy = 1) depth ratio.
-resolve_ploidy <- function(data, opt) {
-  if (!isTRUE(opt[["auto-ploidy"]])) {
-    return(opt$ploidy)
-  }
-
-  # Build the ploidy-agnostic depth ratio (same normalization as the
-  # estimate_ploidy validation: tumor_ploidy = 1, no mode division).
-  norm_factors_1 <- calculate_normalization_factors(data, tumor_ploidy = 1)
-  data_1 <- calculate_depth_ratio(data, norm_factors_1)
-  filtered_1 <- filter_data_for_cbs(data_1)
-
-  est <- estimate_ploidy(filtered_1$depth_ratio)
-
-  cat(sprintf(
-    "[auto-ploidy] estimated ploidy = %d (mu = %.3f, confidence = %s; CN1 score = %.2f, CN2 score = %.2f)\n",
-    est$ploidy, est$mu, est$confidence, est$cn1_score, est$cn2_score))
-
-  if (grepl("^low", est$confidence)) {
-    warning(sprintf(
-      "[auto-ploidy] low-confidence ploidy estimate (CN1 = %.2f, CN2 = %.2f); consider setting --ploidy manually.",
-      est$cn1_score, est$cn2_score))
-  }
-
-  est$ploidy
-}
-
-# Calibrate the depth ratio so the dominant copy-number state sits at the
-# integer tumor ploidy. Input depth_ratio is the ploidy-agnostic ratio (R0,
-# tumor_ploidy = 1). The dominant state is the tallest KDE peak (detect_peaks),
-# the robust analogue of the histogram mode; setting mu = tallest_peak / ploidy
-# and dividing places that peak exactly at the integer ploidy and other peaks at
-# their integer multiples. This replaces the old histogram-mode normalization
-# (which had bin-width quantization slop); the mode is kept only as a fallback
-# when no peak is found (e.g. very low coverage).
-calibrate_depth_ratio <- function(filtered_data, ploidy, binwidth) {
-  peaks <- detect_peaks(filtered_data$depth_ratio)
-  if (nrow(peaks) > 0) {
-    mu <- peaks$x[which.max(peaks$y)] / ploidy
-    cat("Calibration via tallest peak: mu =", mu, "(ploidy =", ploidy, ")\n")
-  } else {
-    mode_value <- calculate_mode_depth_ratio(filtered_data, binwidth)
-    mu <- mode_value / ploidy
-    cat("No peaks detected; calibration via histogram mode: mu =", mu, "\n")
-  }
-  filtered_data$depth_ratio <- filtered_data$depth_ratio / mu
   return(filtered_data)
 }
 

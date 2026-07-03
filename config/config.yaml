@@ -137,6 +137,9 @@ copynumber_hap2_label: Haplotype2
 copynumber_ploidy_hap1: ""       # leave "" to auto-estimate tumor ploidy; set an integer to override
 copynumber_ploidy_hap2: ""
 copynumber_plot_sex_chrom: true  # force chrX/chrY onto the plot even if absent (false = only when present)
+chm13_censat: ""                 # CHM13 cenSat v2.1 BED(.gz): fill assembly gaps in the plot (optional)
+# CHM13 chr lengths for the plot's terminal margin are derived at plot time from
+# chm13_fasta via chromosome_length.py (no separate file needed).
 pileup_no_baq: false
 
 # ---- annotation resources (set to "" to skip the corresponding step) ----

@@ -67,6 +67,7 @@ python3 ../setup_workflow.py \
     --gnomad-vcf             resources/annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz \
     --grch38-fasta           resources/reference/GRCh38.d1.vd1.fa \
     --copynumber-plot-sex-chrom false \
+    --chm13-censat           resources/reference/chm13v2.0_censat_v2.1.bed.gz \
     --pileup-no-baq true \
     --singularity-bind $HOME,/hshare1/ZETTAI_path_WA_slash_home_KARA/home/yosakam \
     --output-dir ./HG008 \

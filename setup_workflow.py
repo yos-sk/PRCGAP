@@ -160,6 +160,7 @@ def create_config(args):
         "copynumber_ploidy_hap1": args.copynumber_ploidy_hap1,
         "copynumber_ploidy_hap2": args.copynumber_ploidy_hap2,
         "copynumber_plot_sex_chrom": args.copynumber_plot_sex_chrom,
+        "chm13_censat": _abs(args.chm13_censat) or "",
         # ---- pileup (mutation postprocess) params ----
         "pileup_no_baq": args.pileup_no_baq,
         # ---- annotation resources (optional) ----
@@ -354,6 +355,11 @@ Examples:
                         help="force chrX/chrY onto the copy-number plot even when "
                              "absent from the data (default: true; set false to "
                              "show sex chromosomes only when present)")
+    parser.add_argument("--chm13-censat", default="",
+                        help="CHM13 cenSat v2.1 BED (.gz) for the copy-number plot; "
+                             "fills assembly gaps with reference satellite (optional). "
+                             "CHM13 chromosome lengths are derived at plot time from "
+                             "the --chm13-fasta via chromosome_length.py.")
     parser.add_argument("--pileup-no-baq", default="false",
                         choices=["true", "false"],
                         help="pass --no-BAQ to samtools mpileup in the "
