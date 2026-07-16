@@ -11,9 +11,10 @@ scripts bundle two responsibilities:
       reference VCFs.
 
 (b) is the comparison step that proposal step 3 explicitly defers, so
-this script keeps (a) only. The output column schema otherwise mirrors
-the reference: same column names, with `GRCh38_flag`/`chm13_flag`
-emitted as `-` placeholders.
+this script keeps (a) only. The reference's `GRCh38_flag`/`chm13_flag`
+columns (which would hold the result of (b)) are omitted entirely rather
+than emitted as `-` placeholders; re-add them here (and re-add the two
+index positions in check_homozygous_{snv,indel}.py) if (b) is implemented.
 
 Two modes:
   --mode snv    Reads `coordconv` output BEDs (one for GRCh38, one for
@@ -120,7 +121,6 @@ def run_snv(args):
         + [
             "GRCh38_contig", "GRCh38_pos", "GRCh38_status",
             "chm13_contig", "chm13_pos", "chm13_status",
-            "GRCh38_flag", "chm13_flag",
         ]
         + EMIT_COLUMNS_TAIL
     )
@@ -138,7 +138,6 @@ def run_snv(args):
             out = (
                 [row[k] for k in EMIT_COLUMNS_BASE]
                 + list(g) + list(c)
-                + ["-", "-"]  # GRCh38_flag, chm13_flag (comparison deferred)
                 + [row[k] for k in EMIT_COLUMNS_TAIL]
             )
             w.write("\t".join(out) + "\n")
@@ -195,7 +194,6 @@ def run_indel(args):
         + [
             "GRCh38_contig", "GRCh38_pos", "GRCh38_ref", "GRCh38_alt", "GRCh38_status",
             "chm13_contig", "chm13_pos", "chm13_ref", "chm13_alt", "chm13_status",
-            "GRCh38_flag", "chm13_flag",
         ]
         + EMIT_COLUMNS_TAIL
     )
@@ -229,7 +227,6 @@ def run_indel(args):
                 [row[k] for k in EMIT_COLUMNS_BASE]
                 + [g_contig, g_pos, g_ref, g_alt, g_status]
                 + [c_contig, c_pos, c_ref, c_alt, c_status]
-                + ["-", "-"]  # GRCh38_flag, chm13_flag (comparison deferred)
                 + [row[k] for k in EMIT_COLUMNS_TAIL]
             )
             w.write("\t".join(out) + "\n")

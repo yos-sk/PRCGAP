@@ -84,10 +84,27 @@ python3 "${SCRIPT_DIR}/add_lift_coords.py" \
     --grch38 "${GRCH38_LIFT}" \
     --chm13 "${CHM13_LIFT}"
 
+# Append fixed-name, empty column(s) to keep the output schema invariant when an
+# optional annotation step is skipped. Downstream consumers (check_homozygous_*.py
+# and the annotated table schema) parse by fixed column position, so every
+# optional column must always be present — empty when its resource is absent.
+# `print $0, ...` leaves $0 untouched, so records on contigs whose names contain
+# '#' (hifiasm HiC) are preserved verbatim.
+append_empty_cols() {  # $1=in  $2=out  $3..=header names
+    local in="$1" out="$2"; shift 2
+    awk -v names="$*" 'BEGIN{FS=OFS="\t"; n=split(names, a, " ")}
+        NR==1 { row=$0; for(i=1;i<=n;i++) row=row OFS a[i]; print row; next }
+              { row=$0; for(i=1;i<=n;i++) row=row OFS "";  print row }' "${in}" > "${out}"
+}
+
 # 1. gene
 if [ -n "${LIFTOFF_GFF}" ] && [ -n "${CGC_TSV}" ] && [ -n "${CMRG_TSV}" ] && [ -n "${GENCODE_BED}" ]; then
     NEXT="${WORK_DIR}/${PREFIX}.gene.txt"
     ${ADD} gene -i "${CUR}" -o "${NEXT}" -g "${LIFTOFF_GFF}" -c "${CGC_TSV}" -m "${CMRG_TSV}" -t "${GENCODE_BED}"
+    CUR="${NEXT}"
+else
+    NEXT="${WORK_DIR}/${PREFIX}.gene.txt"
+    append_empty_cols "${CUR}" "${NEXT}" liftoff_gene liftoff_gene_info cgc cmrg
     CUR="${NEXT}"
 fi
 
@@ -95,6 +112,10 @@ fi
 if [ -n "${RMSK_BED}" ]; then
     NEXT="${WORK_DIR}/${PREFIX}.rmsk.txt"
     ${ADD} rmsk -i "${CUR}" -o "${NEXT}" -b "${RMSK_BED}"
+    CUR="${NEXT}"
+else
+    NEXT="${WORK_DIR}/${PREFIX}.rmsk.txt"
+    append_empty_cols "${CUR}" "${NEXT}" rmsk_class rmsk_type
     CUR="${NEXT}"
 fi
 
@@ -108,6 +129,10 @@ if [ -n "${MISASSEMBLY_HAP1_BED}" ] && [ -n "${MISASSEMBLY_HAP2_BED}" ]; then
     NEXT="${WORK_DIR}/${PREFIX}.misassembly.txt"
     ${ADD} misassembly -i "${CUR}" -o "${NEXT}" -b "${MISASSEMBLY_HAP1_BED}" -c "${MISASSEMBLY_HAP2_BED}"
     CUR="${NEXT}"
+else
+    NEXT="${WORK_DIR}/${PREFIX}.misassembly.txt"
+    append_empty_cols "${CUR}" "${NEXT}" misassembly
+    CUR="${NEXT}"
 fi
 
 # 5. centromere
@@ -115,12 +140,20 @@ if [ -n "${CENSAT_BED}" ]; then
     NEXT="${WORK_DIR}/${PREFIX}.cen.txt"
     ${ADD} cen -i "${CUR}" -o "${NEXT}" -s "${CENSAT_BED}"
     CUR="${NEXT}"
+else
+    NEXT="${WORK_DIR}/${PREFIX}.cen.txt"
+    append_empty_cols "${CUR}" "${NEXT}" centromere
+    CUR="${NEXT}"
 fi
 
 # 6. segdup
 if [ -n "${SEGDUP_BED}" ]; then
     NEXT="${WORK_DIR}/${PREFIX}.segdup.txt"
     ${ADD} segdup -i "${CUR}" -o "${NEXT}" -s "${SEGDUP_BED}"
+    CUR="${NEXT}"
+else
+    NEXT="${WORK_DIR}/${PREFIX}.segdup.txt"
+    append_empty_cols "${CUR}" "${NEXT}" segdup segdup_similarity
     CUR="${NEXT}"
 fi
 

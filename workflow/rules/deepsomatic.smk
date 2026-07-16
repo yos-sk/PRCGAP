@@ -1,26 +1,33 @@
 # ====================================================================
 # DEEPSOMATIC
 # ====================================================================
+#
+# DeepSomatic runs per available sequencing type ({seqtype} = hifi / ont).
+# The DeepSomatic --model_type is derived from the seqtype: PACBIO for hifi,
+# ONT for ont.
 
 rule deepsomatic:
     input:
-        tumor_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
-        normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
+        tumor_bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(wc.tumor, wc.seqtype, wc.tumor),
+        normal_bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), wc.seqtype, get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
     output:
-        directory("deepsomatic/{tumor}")
+        directory("deepsomatic/{tumor}/{seqtype}")
     message:
-        "--- Running DeepSomatic for {wildcards.tumor}"
+        "--- Running DeepSomatic for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        normal=lambda wc: get_paired_normal(wc.tumor)
+        normal=lambda wc: get_paired_normal(wc.tumor),
+        model_type=lambda wc: "ONT" if wc.seqtype == "ont" else "PACBIO",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("deepsomatic", 16)
     resources:
         mem_mb=get_mem_mb("deepsomatic", 64000)
     log:
-        "logs/deepsomatic/{tumor}.log"
+        "logs/deepsomatic/{tumor}_{seqtype}.log"
     singularity:
         config.get("singularity_images", {}).get("deepsomatic", "")
     shell:
@@ -33,7 +40,8 @@ rule deepsomatic:
             {output} \
             {input.assembly_hap1} \
             {input.assembly_hap2} \
-            {threads} &> {log}
+            {threads} \
+            {params.model_type} &> {log}
         """
 
 # ====================================================================
@@ -42,24 +50,26 @@ rule deepsomatic:
 
 rule deepsomatic_postprocess_prepare:
     input:
-        deepsomatic_dir="deepsomatic/{tumor}",
+        deepsomatic_dir="deepsomatic/{tumor}/{seqtype}",
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
     output:
-        vcf="deepsomatic_post/{tumor}/output.vcf.gz",
-        reference_fa="deepsomatic_post/{tumor}/reference.fa",
-        reference_fai="deepsomatic_post/{tumor}/reference.fa.fai",
+        vcf="deepsomatic_post/{tumor}/{seqtype}/output.vcf.gz",
+        reference_fa="deepsomatic_post/{tumor}/{seqtype}/reference.fa",
+        reference_fai="deepsomatic_post/{tumor}/{seqtype}/reference.fa.fai",
     message:
-        "--- Preparing DeepSomatic results for {wildcards.tumor}"
+        "--- Preparing DeepSomatic results for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="deepsomatic_post/{tumor}",
+        output_dir="deepsomatic_post/{tumor}/{seqtype}",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("deepsomatic_postprocess", 4)
     resources:
         mem_mb=get_mem_mb("deepsomatic_postprocess", 16000)
     log:
-        "logs/deepsomatic_postprocess/{tumor}_prepare.log"
+        "logs/deepsomatic_postprocess/{tumor}_{seqtype}_prepare.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -75,23 +85,25 @@ rule deepsomatic_postprocess_prepare:
 
 rule deepsomatic_postprocess_parse_vcf:
     input:
-        vcf="deepsomatic_post/{tumor}/output.vcf.gz",
-        reference_fa="deepsomatic_post/{tumor}/reference.fa",
+        vcf="deepsomatic_post/{tumor}/{seqtype}/output.vcf.gz",
+        reference_fa="deepsomatic_post/{tumor}/{seqtype}/reference.fa",
     output:
-        parsed_bed="deepsomatic_post/{tumor}/realign/parsed_vcf.bed",
-        realign_fasta="deepsomatic_post/{tumor}/realign/realign_ref.fasta",
+        parsed_bed="deepsomatic_post/{tumor}/{seqtype}/realign/parsed_vcf.bed",
+        realign_fasta="deepsomatic_post/{tumor}/{seqtype}/realign/realign_ref.fasta",
     message:
-        "--- Parsing DeepSomatic VCF for {wildcards.tumor}"
+        "--- Parsing DeepSomatic VCF for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="deepsomatic_post/{tumor}",
+        output_dir="deepsomatic_post/{tumor}/{seqtype}",
         tool="DeepSomatic",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("deepsomatic_postprocess", 4)
     resources:
         mem_mb=get_mem_mb("deepsomatic_postprocess", 16000)
     log:
-        "logs/deepsomatic_postprocess/{tumor}_parse_vcf.log"
+        "logs/deepsomatic_postprocess/{tumor}_{seqtype}_parse_vcf.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -108,22 +120,24 @@ rule deepsomatic_postprocess_parse_vcf:
 
 rule deepsomatic_postprocess_realign:
     input:
-        parsed_bed="deepsomatic_post/{tumor}/realign/parsed_vcf.bed",
-        realign_fasta="deepsomatic_post/{tumor}/realign/realign_ref.fasta",
+        parsed_bed="deepsomatic_post/{tumor}/{seqtype}/realign/parsed_vcf.bed",
+        realign_fasta="deepsomatic_post/{tumor}/{seqtype}/realign/realign_ref.fasta",
     output:
-        realign_bam="deepsomatic_post/{tumor}/realign/realign.bam",
-        realign_bai="deepsomatic_post/{tumor}/realign/realign.bam.bai",
+        realign_bam="deepsomatic_post/{tumor}/{seqtype}/realign/realign.bam",
+        realign_bai="deepsomatic_post/{tumor}/{seqtype}/realign/realign.bam.bai",
     message:
-        "--- Realigning DeepSomatic results for {wildcards.tumor}"
+        "--- Realigning DeepSomatic results for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="deepsomatic_post/{tumor}",
+        output_dir="deepsomatic_post/{tumor}/{seqtype}",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("deepsomatic_postprocess_realign", 16)
     resources:
         mem_mb=get_mem_mb("deepsomatic_postprocess_realign", 32000)
     log:
-        "logs/deepsomatic_postprocess/{tumor}_realign.log"
+        "logs/deepsomatic_postprocess/{tumor}_{seqtype}_realign.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -136,20 +150,22 @@ rule deepsomatic_postprocess_realign:
 
 rule deepsomatic_postprocess_split_bed:
     input:
-        parsed_bed="deepsomatic_post/{tumor}/realign/parsed_vcf.bed",
+        parsed_bed="deepsomatic_post/{tumor}/{seqtype}/realign/parsed_vcf.bed",
     output:
-        pileup_tasks="deepsomatic_post/{tumor}/pileup/workspace/pileup_tasks.txt",
+        pileup_tasks="deepsomatic_post/{tumor}/{seqtype}/pileup/workspace/pileup_tasks.txt",
     message:
-        "--- Splitting DeepSomatic BED for pileup for {wildcards.tumor}"
+        "--- Splitting DeepSomatic BED for pileup for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="deepsomatic_post/{tumor}",
+        output_dir="deepsomatic_post/{tumor}/{seqtype}",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("deepsomatic_postprocess_split", 1)
     resources:
         mem_mb=get_mem_mb("deepsomatic_postprocess_split", 4000)
     log:
-        "logs/deepsomatic_postprocess/{tumor}_split_bed.log"
+        "logs/deepsomatic_postprocess/{tumor}_{seqtype}_split_bed.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -162,24 +178,26 @@ rule deepsomatic_postprocess_split_bed:
 
 rule deepsomatic_postprocess_pileup:
     input:
-        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
-        pileup_tasks="deepsomatic_post/{tumor}/pileup/workspace/pileup_tasks.txt",
-        reference_fa="deepsomatic_post/{tumor}/reference.fa",
+        bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(wc.tumor, wc.seqtype, wc.tumor),
+        pileup_tasks="deepsomatic_post/{tumor}/{seqtype}/pileup/workspace/pileup_tasks.txt",
+        reference_fa="deepsomatic_post/{tumor}/{seqtype}/reference.fa",
     output:
-        pileup="deepsomatic_post/{tumor}/pileup/{tumor}_pileup.bed.gz",
-        pileup_tbi="deepsomatic_post/{tumor}/pileup/{tumor}_pileup.bed.gz.tbi",
+        pileup="deepsomatic_post/{tumor}/{seqtype}/pileup/{tumor}_pileup.bed.gz",
+        pileup_tbi="deepsomatic_post/{tumor}/{seqtype}/pileup/{tumor}_pileup.bed.gz.tbi",
     message:
-        "--- Running pileup for DeepSomatic postprocess {wildcards.tumor}"
+        "--- Running pileup for DeepSomatic postprocess {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="deepsomatic_post/{tumor}",
+        output_dir="deepsomatic_post/{tumor}/{seqtype}",
         no_baq=config.get("pileup_no_baq", "false"),
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("deepsomatic_postprocess_pileup", 16)
     resources:
         mem_mb=get_mem_mb("deepsomatic_postprocess_pileup", 32000)
     log:
-        "logs/deepsomatic_postprocess/{tumor}_pileup.log"
+        "logs/deepsomatic_postprocess/{tumor}_{seqtype}_pileup.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -197,24 +215,26 @@ rule deepsomatic_postprocess_pileup:
 
 rule deepsomatic_postprocess_haplotype:
     input:
-        parsed_bed="deepsomatic_post/{tumor}/realign/parsed_vcf.bed",
-        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
-        realign_bam="deepsomatic_post/{tumor}/realign/realign.bam",
-        pileup="deepsomatic_post/{tumor}/pileup/{tumor}_pileup.bed.gz",
-        kmer_ratio=lambda wc: "bam_refiner/{}/hifi/{}_kmer_ratio.txt".format(wc.tumor, wc.tumor),
+        parsed_bed="deepsomatic_post/{tumor}/{seqtype}/realign/parsed_vcf.bed",
+        bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(wc.tumor, wc.seqtype, wc.tumor),
+        realign_bam="deepsomatic_post/{tumor}/{seqtype}/realign/realign.bam",
+        pileup="deepsomatic_post/{tumor}/{seqtype}/pileup/{tumor}_pileup.bed.gz",
+        kmer_ratio=lambda wc: "bam_refiner/{}/{}/{}_kmer_ratio.txt".format(wc.tumor, wc.seqtype, wc.tumor),
     output:
-        haplotyped="deepsomatic_post/{tumor}/{tumor}.haplotyped.bed",
+        haplotyped="deepsomatic_post/{tumor}/{seqtype}/{tumor}.haplotyped.bed",
     message:
-        "--- Running haplotyping for DeepSomatic postprocess {wildcards.tumor}"
+        "--- Running haplotyping for DeepSomatic postprocess {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="deepsomatic_post/{tumor}",
+        output_dir="deepsomatic_post/{tumor}/{seqtype}",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("deepsomatic_postprocess_haplotype", 4)
     resources:
         mem_mb=get_mem_mb("deepsomatic_postprocess_haplotype", 16000)
     log:
-        "logs/deepsomatic_postprocess/{tumor}_haplotype.log"
+        "logs/deepsomatic_postprocess/{tumor}_{seqtype}_haplotype.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:

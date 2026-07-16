@@ -10,10 +10,15 @@ automatically. Distinct pairs (or distinct assemblies) must be run separately
 (own config + sample sheet + output dir).
 
 This script does NOT auto-discover files. You name the tumor and normal samples
-and point each at its ONT and HiFi data with dedicated options; the shared
+and point each at its ONT and/or HiFi data with dedicated options; the shared
 assembly is given once. The script validates the entries, absolutises the data
 paths, and writes the canonical sample sheet consumed by the workflow
 (workflow/rules/commons.smk).
+
+ONT and HiFi are each optional per sample, but at least one is required: a
+sample may be HiFi-only or ONT-only. The workflow runs each analysis on
+whichever sequencing type(s) are present (nanomonsv / methylation / clairs /
+deepsomatic run per available type; copynumber uses HiFi if present, else ONT).
 
 Columns written: sample, type, ont, hifi, assembly_hap1, assembly_hap2.
 
@@ -23,6 +28,13 @@ Examples
   python3 set_sample_sheet.py \
       --tumor  HG008T --tumor-ont  reads/HG008T.ont.bam  --tumor-hifi  reads/HG008T.hifi.bam \
       --normal HG008N --normal-ont reads/HG008N.ont.bam  --normal-hifi reads/HG008N.hifi.bam \
+      --assembly-hap1 asm/hap1.fa --assembly-hap2 asm/hap2.fa \
+      -o config/samples.tsv
+
+  # HiFi-only pair (omit the --*-ont flags entirely):
+  python3 set_sample_sheet.py \
+      --tumor  T --tumor-hifi  t.hifi.bam \
+      --normal N --normal-hifi n.hifi.bam \
       --assembly-hap1 asm/hap1.fa --assembly-hap2 asm/hap2.fa \
       -o config/samples.tsv
 
@@ -102,10 +114,11 @@ def build_rows_from_pair(args):
     for sample_type, name, ont_values, hifi_values in specs:
         ont = _collect_paths(ont_values)
         hifi = _collect_paths(hifi_values)
-        if not ont:
-            raise SampleSheetError(f"{sample_type} sample {name}: no --{sample_type}-ont given")
-        if not hifi:
-            raise SampleSheetError(f"{sample_type} sample {name}: no --{sample_type}-hifi given")
+        # A sample may be HiFi-only or ONT-only; require at least one type.
+        if not ont and not hifi:
+            raise SampleSheetError(
+                f"{sample_type} sample {name}: at least one of "
+                f"--{sample_type}-ont / --{sample_type}-hifi is required")
         rows.append({
             "sample": name,
             "type": sample_type,
@@ -152,6 +165,11 @@ def normalize_and_validate(rows, check_exists=True, absolutize=True):
         for field in PATH_FIELDS:
             paths = _split_paths(row[field])
             if not paths:
+                # ont / hifi are optional (a sample may be HiFi-only or
+                # ONT-only); the "at least one" check below enforces coverage.
+                if field in SEQTYPE_FIELDS:
+                    row[field] = ""
+                    continue
                 raise SampleSheetError(f"sample {name}: empty '{field}' field")
             if absolutize:
                 paths = [_abs(p) for p in paths]
@@ -166,6 +184,12 @@ def normalize_and_validate(rows, check_exists=True, absolutize=True):
                 raise SampleSheetError(
                     f"sample {name}: {field} must be a single file, got {len(paths)}")
             row[field] = _join_paths(paths)
+
+        # Enforce that every sample carries at least one sequencing type.
+        if not any(_split_paths(row[f]) for f in SEQTYPE_FIELDS):
+            raise SampleSheetError(
+                f"sample {name}: at least one of {', '.join(SEQTYPE_FIELDS)} "
+                "must be provided")
 
     normals = [r["sample"] for r in rows if r["type"] == "normal"]
     tumors = [r["sample"] for r in rows if r["type"] == "tumor"]
@@ -212,8 +236,10 @@ def main():
 
     pair = parser.add_argument_group(
         "tumor-normal pair (option mode)",
-        "Name the two samples and point each at its ONT and HiFi data. "
-        "ONT/HiFi options are repeatable and also accept comma-separated lists.")
+        "Name the two samples and point each at its ONT and/or HiFi data. "
+        "ONT and HiFi are each optional but at least one is required per sample "
+        "(HiFi-only and ONT-only samples are supported). ONT/HiFi options are "
+        "repeatable and also accept comma-separated lists.")
     pair.add_argument("--tumor", metavar="NAME", help="tumor sample name")
     pair.add_argument("--tumor-ont", action="append", metavar="PATH",
                       help="tumor ONT data (fastq.gz or bam). Repeatable.")

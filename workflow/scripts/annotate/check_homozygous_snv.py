@@ -15,8 +15,6 @@ class SNVinfo:
         self.chm13_contig = ""
         self.chm13_pos = ""
         self.chm13_status = ""
-        self.GRCh38 = ""
-        self.chm13 = ""
         self.vaf = 0.0
         self.depth = 0
         self.normal_vaf = 0.0
@@ -49,32 +47,30 @@ class SNVinfo:
         self.chm13_contig = info[8]
         self.chm13_pos = info[9]
         self.chm13_status = info[10]
-        self.GRCh38 = info[11]
-        self.chm13 = info[12]
-        self.vaf = float(info[13])
-        self.depth = int(info[14])
-        self.normal_vaf = float(info[15])
-        self.normal_depth = int(info[16])
-        self.mutation_id = info[17]
-        self.haplotype = info[18]
-        self.kmer_ratio = float(info[19])
-        self.liftoff_gene = info[20]
-        self.liftoff_info = info[21]
-        self.cgc = info[22]
-        self.cmrg = info[23]
-        self.rmsk = info[24]
-        self.rmsk_type = info[25]
-        self.contig_size = int(info[26])
-        self.misassembly = info[27]
-        self.centromere = info[28]
-        self.segdup = info[29]
-        self.segdup_similarity = info[30]
-        self.other = info[31]
+        self.vaf = float(info[11])
+        self.depth = int(info[12])
+        self.normal_vaf = float(info[13])
+        self.normal_depth = int(info[14])
+        self.mutation_id = info[15]
+        self.haplotype = info[16]
+        self.kmer_ratio = float(info[17])
+        self.liftoff_gene = info[18]
+        self.liftoff_info = info[19]
+        self.cgc = info[20]
+        self.cmrg = info[21]
+        self.rmsk = info[22]
+        self.rmsk_type = info[23]
+        self.contig_size = int(info[24])
+        self.misassembly = info[25]
+        self.centromere = info[26]
+        self.segdup = info[27]
+        self.segdup_similarity = info[28]
+        self.other = info[29]
     
     
     def output(self):
         print(self.contig, self.start, self.end, self.ref, self.alt, self.GRCh38_contig, self.GRCh38_pos, self.GRCh38_status,
-              self.chm13_contig, self.chm13_pos, self.chm13_status, self.GRCh38, self.chm13, self.vaf, self.depth, self.normal_vaf, self.normal_depth, self.mutation_id, self.haplotype, self.kmer_ratio,
+              self.chm13_contig, self.chm13_pos, self.chm13_status, self.vaf, self.depth, self.normal_vaf, self.normal_depth, self.mutation_id, self.haplotype, self.kmer_ratio,
               self.liftoff_gene, self.liftoff_info, self.cgc, self.cmrg, self.rmsk, self.rmsk_type, self.contig_size, self.misassembly, self.centromere, self.segdup, self.segdup_similarity, self.other, sep="\t")
     
     def complement(self):

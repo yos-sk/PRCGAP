@@ -18,10 +18,12 @@ mkdir -p ${OUTPUT_DIR}
 cat ${ASSEMBLY_HAP1} ${ASSEMBLY_HAP2} > ${OUTPUT_REF}
 samtools faidx ${OUTPUT_REF}
 
-# Combine ClairS VCF (if indel.vcf.gz exists)
+# Combine ClairS VCF (if indel.vcf.gz exists). Strip only the VCF header
+# (lines starting with '#'); anchor to '^#' so records on contigs whose names
+# contain '#' (e.g. hifiasm HiC 'sample#hap#contig') are NOT dropped.
 if [ -f ${CLAIRS_DIR}/indel.vcf.gz ]; then
     zcat ${CLAIRS_DIR}/output.vcf.gz | gzip -c > ${OUTPUT_VCF}
-    zgrep -v "#" ${CLAIRS_DIR}/indel.vcf.gz | gzip -f -c >> ${OUTPUT_VCF}
+    zgrep -v "^#" ${CLAIRS_DIR}/indel.vcf.gz | gzip -f -c >> ${OUTPUT_VCF}
 else
     cp ${CLAIRS_DIR}/output.vcf.gz ${OUTPUT_VCF}
 fi

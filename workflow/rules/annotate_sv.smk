@@ -24,6 +24,23 @@ def _opt_path(key):
     return config.get(key, "") or ""
 
 
+def _nanomonsv_other_input(wildcards):
+    """The complementary seqtype's insert_classified result, for the HiFi↔ONT
+    cross-check in annotate_sv_main. Returns [] when the other seqtype is not
+    available for this tumor (HiFi-only / ONT-only), skipping the cross-check.
+    """
+    other = "ont" if wildcards.seqtype == "hifi" else "hifi"
+    if other in paired_seqtypes(wildcards.tumor):
+        return "nanomonsv/{}/{}.nanomonsv.new_result.sv_typed.insert_classified.txt".format(
+            other, wildcards.tumor)
+    return []
+
+
+def _nanomonsv_other_param(wildcards):
+    path = _nanomonsv_other_input(wildcards)
+    return path if isinstance(path, str) else ""
+
+
 # ====================================================================
 # Shared liftoff-derived gene BED.
 #
@@ -207,11 +224,7 @@ rule coordconv_sv_chm13:
 rule annotate_sv_main:
     input:
         pass_txt="annotate_sv/{tumor}/{seqtype}/workspace/{tumor}.filt.pass.txt",
-        nanomonsv_other=lambda wc: (
-            "nanomonsv/ont/{}.nanomonsv.new_result.sv_typed.insert_classified.txt".format(wc.tumor)
-            if wc.seqtype == "hifi"
-            else "nanomonsv/hifi/{}.nanomonsv.new_result.sv_typed.insert_classified.txt".format(wc.tumor)
-        ),
+        nanomonsv_other=lambda wc: _nanomonsv_other_input(wc),
         support_reads="nanomonsv/{seqtype}/{tumor}.nanomonsv.supporting_read.txt",
         kmer_ratio=lambda wc: "bam_refiner/{}/{}/{}_kmer_ratio.txt".format(wc.tumor, wc.seqtype, wc.tumor),
         hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
@@ -227,6 +240,7 @@ rule annotate_sv_main:
         sample="{tumor}",
         output_dir="annotate_sv/{tumor}/{seqtype}",
         work_dir="annotate_sv/{tumor}/{seqtype}/workspace",
+        nanomonsv_other=lambda wc: _nanomonsv_other_param(wc),
         liftoff_bed=lambda wc: _liftoff_bed_param(wc),
         cgc=_opt_path("cancer_gene_census_tsv"),
         rmsk=_opt_path("repeat_masker_bed"),
@@ -252,7 +266,7 @@ rule annotate_sv_main:
         /bin/bash {ANNOT_DIR}/annotate_sv.sh \
             "{params.sample}" \
             "{input.pass_txt}" \
-            "{input.nanomonsv_other}" \
+            "{params.nanomonsv_other}" \
             "{input.support_reads}" \
             "{input.kmer_ratio}" \
             "{input.hap1}" \
@@ -274,42 +288,37 @@ rule annotate_sv_main:
 
 
 # ====================================================================
-# RECLASSIFY SV TYPE (per tumor; combines hifi+ont, requires copynumber ref.table)
+# RECLASSIFY SV TYPE (per tumor, per seqtype; requires copynumber ref.table)
 # ====================================================================
 
 rule reclassify_sv:
     input:
-        hifi_annotated="annotate_sv/{tumor}/hifi/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
-        ont_annotated="annotate_sv/{tumor}/ont/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
+        annotated="annotate_sv/{tumor}/{seqtype}/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
         # Depend on the copynumber rule's declared output (the .png) so Snakemake
         # knows how to build it; the ref.table files are produced alongside it in
         # the same output dir (see params.copynumber_dir).
         copynumber_png=lambda wc: "copynumber/{}/output/{}.copynumber.png".format(wc.tumor, wc.tumor),
     output:
-        hifi="annotate_sv/{tumor}/{tumor}.hifi.PRCGAP.nanomonsv_results.reclassified.txt",
-        ont="annotate_sv/{tumor}/{tumor}.ont.PRCGAP.nanomonsv_results.reclassified.txt",
+        "annotate_sv/{tumor}/{tumor}.{seqtype}.PRCGAP.nanomonsv_results.reclassified.txt",
     message:
-        "--- Reclassifying SV types for {wildcards.tumor}"
+        "--- Reclassifying SV types for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         normal=lambda wc: get_paired_normal(wc.tumor),
         copynumber_dir="copynumber/{tumor}/output",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("reclassify_sv", 1)
     resources:
         mem_mb=get_mem_mb("reclassify_sv", 16000)
     log:
-        "logs/annotate_sv/{tumor}_reclassify.log"
+        "logs/annotate_sv/{tumor}_{seqtype}_reclassify.log"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
         """
-        ( python3 {ANNOT_DIR}/reclassify_sv_type.py \
-              -i {input.hifi_annotated} \
-              -o {output.hifi} \
-              -r {params.copynumber_dir}/{params.normal}.hap1.ref.table {params.copynumber_dir}/{params.normal}.hap2.ref.table
-          python3 {ANNOT_DIR}/reclassify_sv_type.py \
-              -i {input.ont_annotated} \
-              -o {output.ont} \
-              -r {params.copynumber_dir}/{params.normal}.hap1.ref.table {params.copynumber_dir}/{params.normal}.hap2.ref.table
-        ) &> {log}
+        python3 {ANNOT_DIR}/reclassify_sv_type.py \
+            -i {input.annotated} \
+            -o {output} \
+            -r {params.copynumber_dir}/{params.normal}.hap1.ref.table {params.copynumber_dir}/{params.normal}.hap2.ref.table &> {log}
         """

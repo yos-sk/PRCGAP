@@ -12,6 +12,13 @@ import yaml
 from pathlib import Path
 
 
+# Directory containing this script (the PRCGAP repo root). Used to default
+# repo-internal paths (workflow/, images/) so they resolve correctly no matter
+# which working directory setup_workflow.py is invoked from — relative defaults
+# would otherwise be resolved against the CWD by _abs().
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 def _image_path(explicit, images_dir, tool):
     """Return user-supplied image path or fall back to <images_dir>/<tool>.sif."""
     if explicit:
@@ -163,6 +170,11 @@ def create_config(args):
         "chm13_censat": _abs(args.chm13_censat) or "",
         # ---- pileup (mutation postprocess) params ----
         "pileup_no_baq": args.pileup_no_baq,
+        # ---- optional nanomonsv steps (not used in the paper) ----
+        "run_nanomonsv_connect": args.run_nanomonsv_connect,
+        "run_nanomonsv_merge": args.run_nanomonsv_merge,
+        # ---- ClairS platform model ----
+        "clairs_model": args.clairs_model,
         # ---- annotation resources (optional) ----
         "chain_to_grch38": _abs(args.chain_to_grch38) or "",
         "chain_to_chm13": _abs(args.chain_to_chm13) or "",
@@ -289,8 +301,10 @@ Examples:
     # ---------- Singularity images ----------
     # Defaults assume Dockerfile/pull_images.sh has populated ./images/.
     # Pass an explicit --*-image to override.
-    parser.add_argument("--images-dir", default="images",
-                        help="directory containing prepared singularity images (default: images)")
+    parser.add_argument("--images-dir", default=os.path.join(_SCRIPT_DIR, "images"),
+                        help="directory containing prepared singularity images "
+                             "(default: the images/ dir next to setup_workflow.py, so it "
+                             "works regardless of the current working directory)")
     parser.add_argument("--bam-refiner-image", default=None, help="bam_refiner image (default: <images-dir>/bam_refiner.sif)")
     parser.add_argument("--methylation-image", default=None, help="methylation image (default: <images-dir>/methylation.sif)")
     parser.add_argument("--copynumber-image", default=None, help="copynumber image (default: <images-dir>/copynumber.sif)")
@@ -365,6 +379,20 @@ Examples:
                         help="pass --no-BAQ to samtools mpileup in the "
                              "clairs/deepsomatic pileup step (default: false). "
                              "true skips BAQ computation, reducing memory/CPU.")
+    parser.add_argument("--run-nanomonsv-connect", action="store_true", default=False,
+                        help="run the optional nanomonsv connect step "
+                             "(not used in the paper; default off).")
+    parser.add_argument("--run-nanomonsv-merge", action="store_true", default=False,
+                        help="run the optional nanomonsv merge step combining "
+                             "HiFi+ONT results (not used in the paper; default "
+                             "off; only runs when both seqtypes are present).")
+    parser.add_argument("--clairs-model", default="hifi_sequel2",
+                        choices=["hifi_sequel2", "hifi_revio",
+                                 "ont_r10_dorado_sup_5khz_ssrs",
+                                 "ont_r10_dorado_sup_4khz"],
+                        help="ClairS platform model (default: hifi_sequel2). "
+                             "Choose to match your data; applies to every "
+                             "seqtype ClairS runs on.")
 
     # ---------- annotation resources (all optional) ----------
     ann_group = parser.add_argument_group(
@@ -407,8 +435,10 @@ Examples:
                         help="path for generated config.yaml (default: config/config.yaml)")
     parser.add_argument("--runner", default="run_workflow.sh",
                         help="path for generated runner shell script (default: run_workflow.sh)")
-    parser.add_argument("--workflow-dir", default="workflow",
-                        help="snakemake workflow directory containing Snakefile (default: workflow)")
+    parser.add_argument("--workflow-dir", default=os.path.join(_SCRIPT_DIR, "workflow"),
+                        help="snakemake workflow directory containing Snakefile "
+                             "(default: the workflow/ dir next to setup_workflow.py, so "
+                             "it works regardless of the current working directory)")
     parser.add_argument("--targets", nargs="+", default=None,
                         help="snakemake targets to bake into the runner so it builds only "
                              "those by default (e.g. 'copynumber/HG008T/output'). Targets are "

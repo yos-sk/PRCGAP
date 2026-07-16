@@ -18,13 +18,15 @@ OUTPUT_DIR=$5
 ASSEMBLY_HAP1=$6
 ASSEMBLY_HAP2=$7
 THREAD=${8:-16}
+# DeepSomatic model type: PACBIO for HiFi, ONT for ONT.
+MODEL_TYPE=${9:-PACBIO}
 
 mkdir -p ${OUTPUT_DIR}
 cat ${ASSEMBLY_HAP1} ${ASSEMBLY_HAP2} > ${OUTPUT_DIR}/reference.fa
 samtools faidx ${OUTPUT_DIR}/reference.fa
 
 run_deepsomatic \
-    --model_type=PACBIO \
+    --model_type=${MODEL_TYPE} \
     --ref=${OUTPUT_DIR}/reference.fa \
     --reads_normal=${NORMAL_BAM} \
     --reads_tumor=${TUMOR_BAM} \

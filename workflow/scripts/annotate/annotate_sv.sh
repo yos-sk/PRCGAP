@@ -122,10 +122,13 @@ if [ -n "${SEGDUP_BED}" ]; then
     CUR="${NEXT}"
 fi
 
-# 9. nanomonsv other (HiFi vs ONT cross-check)
-NEXT="${WORK_DIR}/${PREFIX}.other.txt"
-${ADD} other -i "${CUR}" -o "${NEXT}" -j "${NANOMONSV_OTHER}"
-CUR="${NEXT}"
+# 9. nanomonsv other (HiFi vs ONT cross-check; skipped when the other seqtype
+#    is unavailable, i.e. HiFi-only / ONT-only samples)
+if [ -n "${NANOMONSV_OTHER}" ]; then
+    NEXT="${WORK_DIR}/${PREFIX}.other.txt"
+    ${ADD} other -i "${CUR}" -o "${NEXT}" -j "${NANOMONSV_OTHER}"
+    CUR="${NEXT}"
+fi
 
 # 10. misassembly (optional)
 if [ -n "${MISASSEMBLY_HAP1_BED}" ] && [ -n "${MISASSEMBLY_HAP2_BED}" ]; then

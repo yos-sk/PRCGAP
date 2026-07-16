@@ -1,26 +1,35 @@
 # ====================================================================
 # CLAIRS
 # ====================================================================
+#
+# ClairS runs per available sequencing type ({seqtype} = hifi / ont). The
+# per-seqtype tumor/normal BAMs come from bam_refiner. The ClairS platform
+# model is selected via config["clairs_model"] (default hifi_sequel2); valid
+# values: hifi_sequel2, hifi_revio, ont_r10_dorado_sup_5khz_ssrs,
+# ont_r10_dorado_sup_4khz.
 
 rule clairs:
     input:
-        tumor_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
-        normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
+        tumor_bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(wc.tumor, wc.seqtype, wc.tumor),
+        normal_bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), wc.seqtype, get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
     output:
-        directory("clairs/{tumor}")
+        directory("clairs/{tumor}/{seqtype}")
     message:
-        "--- Running ClairS for {wildcards.tumor}"
+        "--- Running ClairS for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        normal=lambda wc: get_paired_normal(wc.tumor)
+        normal=lambda wc: get_paired_normal(wc.tumor),
+        model=config.get("clairs_model", "hifi_sequel2"),
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("clairs", 16)
     resources:
         mem_mb=get_mem_mb("clairs", 64000)
     log:
-        "logs/clairs/{tumor}.log"
+        "logs/clairs/{tumor}_{seqtype}.log"
     singularity:
         config.get("singularity_images", {}).get("clairs", "")
     shell:
@@ -31,7 +40,8 @@ rule clairs:
             {output} \
             {input.assembly_hap1} \
             {input.assembly_hap2} \
-            {threads} &> {log}
+            {threads} \
+            {params.model} &> {log}
         """
 
 # ====================================================================
@@ -40,24 +50,26 @@ rule clairs:
 
 rule clairs_postprocess_prepare:
     input:
-        clairs_dir="clairs/{tumor}",
+        clairs_dir="clairs/{tumor}/{seqtype}",
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
     output:
-        vcf="clairs_post/{tumor}/output.vcf.gz",
-        reference_fa="clairs_post/{tumor}/reference.fa",
-        reference_fai="clairs_post/{tumor}/reference.fa.fai",
+        vcf="clairs_post/{tumor}/{seqtype}/output.vcf.gz",
+        reference_fa="clairs_post/{tumor}/{seqtype}/reference.fa",
+        reference_fai="clairs_post/{tumor}/{seqtype}/reference.fa.fai",
     message:
-        "--- Preparing ClairS results for {wildcards.tumor}"
+        "--- Preparing ClairS results for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="clairs_post/{tumor}",
+        output_dir="clairs_post/{tumor}/{seqtype}",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("clairs_postprocess", 4)
     resources:
         mem_mb=get_mem_mb("clairs_postprocess", 16000)
     log:
-        "logs/clairs_postprocess/{tumor}_prepare.log"
+        "logs/clairs_postprocess/{tumor}_{seqtype}_prepare.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -73,23 +85,25 @@ rule clairs_postprocess_prepare:
 
 rule clairs_postprocess_parse_vcf:
     input:
-        vcf="clairs_post/{tumor}/output.vcf.gz",
-        reference_fa="clairs_post/{tumor}/reference.fa",
+        vcf="clairs_post/{tumor}/{seqtype}/output.vcf.gz",
+        reference_fa="clairs_post/{tumor}/{seqtype}/reference.fa",
     output:
-        parsed_bed="clairs_post/{tumor}/realign/parsed_vcf.bed",
-        realign_fasta="clairs_post/{tumor}/realign/realign_ref.fasta",
+        parsed_bed="clairs_post/{tumor}/{seqtype}/realign/parsed_vcf.bed",
+        realign_fasta="clairs_post/{tumor}/{seqtype}/realign/realign_ref.fasta",
     message:
-        "--- Parsing ClairS VCF for {wildcards.tumor}"
+        "--- Parsing ClairS VCF for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="clairs_post/{tumor}",
+        output_dir="clairs_post/{tumor}/{seqtype}",
         tool="ClairS",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("clairs_postprocess", 4)
     resources:
         mem_mb=get_mem_mb("clairs_postprocess", 16000)
     log:
-        "logs/clairs_postprocess/{tumor}_parse_vcf.log"
+        "logs/clairs_postprocess/{tumor}_{seqtype}_parse_vcf.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -106,22 +120,24 @@ rule clairs_postprocess_parse_vcf:
 
 rule clairs_postprocess_realign:
     input:
-        parsed_bed="clairs_post/{tumor}/realign/parsed_vcf.bed",
-        realign_fasta="clairs_post/{tumor}/realign/realign_ref.fasta",
+        parsed_bed="clairs_post/{tumor}/{seqtype}/realign/parsed_vcf.bed",
+        realign_fasta="clairs_post/{tumor}/{seqtype}/realign/realign_ref.fasta",
     output:
-        realign_bam="clairs_post/{tumor}/realign/realign.bam",
-        realign_bai="clairs_post/{tumor}/realign/realign.bam.bai",
+        realign_bam="clairs_post/{tumor}/{seqtype}/realign/realign.bam",
+        realign_bai="clairs_post/{tumor}/{seqtype}/realign/realign.bam.bai",
     message:
-        "--- Realigning ClairS results for {wildcards.tumor}"
+        "--- Realigning ClairS results for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="clairs_post/{tumor}",
+        output_dir="clairs_post/{tumor}/{seqtype}",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("clairs_postprocess_realign", 16)
     resources:
         mem_mb=get_mem_mb("clairs_postprocess_realign", 32000)
     log:
-        "logs/clairs_postprocess/{tumor}_realign.log"
+        "logs/clairs_postprocess/{tumor}_{seqtype}_realign.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -134,20 +150,22 @@ rule clairs_postprocess_realign:
 
 rule clairs_postprocess_split_bed:
     input:
-        parsed_bed="clairs_post/{tumor}/realign/parsed_vcf.bed",
+        parsed_bed="clairs_post/{tumor}/{seqtype}/realign/parsed_vcf.bed",
     output:
-        pileup_tasks="clairs_post/{tumor}/pileup/workspace/pileup_tasks.txt",
+        pileup_tasks="clairs_post/{tumor}/{seqtype}/pileup/workspace/pileup_tasks.txt",
     message:
-        "--- Splitting ClairS BED for pileup for {wildcards.tumor}"
+        "--- Splitting ClairS BED for pileup for {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="clairs_post/{tumor}",
+        output_dir="clairs_post/{tumor}/{seqtype}",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("clairs_postprocess_split", 1)
     resources:
         mem_mb=get_mem_mb("clairs_postprocess_split", 4000)
     log:
-        "logs/clairs_postprocess/{tumor}_split_bed.log"
+        "logs/clairs_postprocess/{tumor}_{seqtype}_split_bed.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -160,24 +178,26 @@ rule clairs_postprocess_split_bed:
 
 rule clairs_postprocess_pileup:
     input:
-        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
-        pileup_tasks="clairs_post/{tumor}/pileup/workspace/pileup_tasks.txt",
-        reference_fa="clairs_post/{tumor}/reference.fa",
+        bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(wc.tumor, wc.seqtype, wc.tumor),
+        pileup_tasks="clairs_post/{tumor}/{seqtype}/pileup/workspace/pileup_tasks.txt",
+        reference_fa="clairs_post/{tumor}/{seqtype}/reference.fa",
     output:
-        pileup="clairs_post/{tumor}/pileup/{tumor}_pileup.bed.gz",
-        pileup_tbi="clairs_post/{tumor}/pileup/{tumor}_pileup.bed.gz.tbi",
+        pileup="clairs_post/{tumor}/{seqtype}/pileup/{tumor}_pileup.bed.gz",
+        pileup_tbi="clairs_post/{tumor}/{seqtype}/pileup/{tumor}_pileup.bed.gz.tbi",
     message:
-        "--- Running pileup for ClairS postprocess {wildcards.tumor}"
+        "--- Running pileup for ClairS postprocess {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="clairs_post/{tumor}",
+        output_dir="clairs_post/{tumor}/{seqtype}",
         no_baq=config.get("pileup_no_baq", "false"),
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("clairs_postprocess_pileup", 16)
     resources:
         mem_mb=get_mem_mb("clairs_postprocess_pileup", 32000)
     log:
-        "logs/clairs_postprocess/{tumor}_pileup.log"
+        "logs/clairs_postprocess/{tumor}_{seqtype}_pileup.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:
@@ -195,24 +215,26 @@ rule clairs_postprocess_pileup:
 
 rule clairs_postprocess_haplotype:
     input:
-        parsed_bed="clairs_post/{tumor}/realign/parsed_vcf.bed",
-        bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
-        realign_bam="clairs_post/{tumor}/realign/realign.bam",
-        pileup="clairs_post/{tumor}/pileup/{tumor}_pileup.bed.gz",
-        kmer_ratio=lambda wc: "bam_refiner/{}/hifi/{}_kmer_ratio.txt".format(wc.tumor, wc.tumor),
+        parsed_bed="clairs_post/{tumor}/{seqtype}/realign/parsed_vcf.bed",
+        bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(wc.tumor, wc.seqtype, wc.tumor),
+        realign_bam="clairs_post/{tumor}/{seqtype}/realign/realign.bam",
+        pileup="clairs_post/{tumor}/{seqtype}/pileup/{tumor}_pileup.bed.gz",
+        kmer_ratio=lambda wc: "bam_refiner/{}/{}/{}_kmer_ratio.txt".format(wc.tumor, wc.seqtype, wc.tumor),
     output:
-        haplotyped="clairs_post/{tumor}/{tumor}.haplotyped.bed",
+        haplotyped="clairs_post/{tumor}/{seqtype}/{tumor}.haplotyped.bed",
     message:
-        "--- Running haplotyping for ClairS postprocess {wildcards.tumor}"
+        "--- Running haplotyping for ClairS postprocess {wildcards.tumor} ({wildcards.seqtype})"
     params:
         tumor="{tumor}",
-        output_dir="clairs_post/{tumor}",
+        output_dir="clairs_post/{tumor}/{seqtype}",
+    wildcard_constraints:
+        seqtype="hifi|ont",
     threads:
         get_threads("clairs_postprocess_haplotype", 4)
     resources:
         mem_mb=get_mem_mb("clairs_postprocess_haplotype", 16000)
     log:
-        "logs/clairs_postprocess/{tumor}_haplotype.log"
+        "logs/clairs_postprocess/{tumor}_{seqtype}_haplotype.log"
     singularity:
         config.get("singularity_images", {}).get("point_mutation_postprocess", "")
     shell:

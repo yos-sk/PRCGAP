@@ -399,6 +399,9 @@ rule nanomonsv_connect_ont:
 # NANOMONSV MERGE
 # ====================================================================
 
+# nanomonsv merge combines the HiFi and ONT results and is therefore only
+# requested for samples that carry BOTH seqtypes (see get_all_targets in the
+# Snakefile); HiFi-only / ONT-only samples skip it.
 rule nanomonsv_merge:
     input:
         hifi="nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt",

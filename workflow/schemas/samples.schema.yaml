@@ -20,10 +20,11 @@ properties:
     type: string
     description: assembly hap2 (fasta)
 
+# ont and hifi are intentionally NOT required: a sample may carry only one
+# sequencing type (HiFi-only or ONT-only). commons.smk enforces that at least
+# one of the two is non-empty for every sample.
 required:
   - sample
   - type
-  - ont 
-  - hifi 
   - assembly_hap1
   - assembly_hap2

@@ -10,6 +10,14 @@ samples = (
     .sort_index()
 )
 
+# The ont / hifi columns are optional per sample: a sample may carry only one
+# sequencing type (HiFi-only or ONT-only). Empty cells are read as NaN by
+# pandas; normalise them to empty strings so the schema (type: string)
+# validates and the seqtype-availability helpers below can test them uniformly.
+for _seqcol in ("ont", "hifi"):
+    if _seqcol in samples.columns:
+        samples[_seqcol] = samples[_seqcol].fillna("").astype(str)
+
 tumors = samples.loc[samples["type"] == "tumor", "sample"].tolist()
 normals = samples.loc[samples["type"] == "normal", "sample"].tolist()
 
@@ -41,6 +49,53 @@ def get_first_input_extension(sample, seqtype):
     """Get the file extension of the first input file."""
     files = get_sample_files_list(sample, seqtype)
     return files[0].split(".")[-1].lower()
+
+# ---------------------------------------------------------------------------
+# Sequencing-type availability
+# ---------------------------------------------------------------------------
+# A sample may provide HiFi-only, ONT-only, or both. These helpers drive which
+# per-seqtype rules fire and how the analysis targets are enumerated so the
+# workflow no longer requires both sequencing types to be present.
+
+def has_seqtype(sample, seqtype):
+    """True if the sample sheet lists non-empty data for this seqtype."""
+    val = samples.loc[sample, seqtype]
+    if not isinstance(val, str):
+        return False
+    return val.strip() not in ("", "nan", "NA", "NaN")
+
+def sample_seqtypes(sample):
+    """Seqtypes present for a sample, in preference order (hifi first)."""
+    return [s for s in ("hifi", "ont") if has_seqtype(sample, s)]
+
+def primary_seqtype(sample):
+    """Preferred single seqtype for a sample (hifi if present, else ont)."""
+    seqtypes = sample_seqtypes(sample)
+    if not seqtypes:
+        raise ValueError(
+            "sample " + str(sample) + " has neither hifi nor ont data")
+    return seqtypes[0]
+
+def paired_seqtypes(tumor):
+    """Seqtypes available for BOTH a tumor and its paired normal.
+
+    Tumor/normal callers (nanomonsv get, clairs, deepsomatic, copynumber)
+    consume matched tumor+normal BAMs of the same seqtype, so a seqtype is only
+    analysable for a tumor when its paired normal also has that seqtype.
+    """
+    normal = get_paired_normal(tumor)
+    tset = set(sample_seqtypes(tumor))
+    nset = set(sample_seqtypes(normal))
+    return [s for s in ("hifi", "ont") if s in tset and s in nset]
+
+def primary_paired_seqtype(tumor):
+    """Preferred single seqtype available for both tumor and its normal."""
+    seqtypes = paired_seqtypes(tumor)
+    if not seqtypes:
+        raise ValueError(
+            "tumor " + str(tumor) + " and its paired normal share no common "
+            "seqtype (hifi/ont)")
+    return seqtypes[0]
 
 def get_sample_assembly_hap1(sample):
     return samples.loc[sample, "assembly_hap1"]
@@ -89,3 +144,11 @@ def get_threads(tool, default=8):
 def get_mem_mb(tool, default=32000):
     """Get memory (MB) for a tool from config or use default."""
     return config.get("resources", {}).get(tool, {}).get("mem_mb", default)
+
+
+# Every sample must provide at least one sequencing type.
+for _sample in samples.index:
+    if not sample_seqtypes(_sample):
+        raise ValueError(
+            "sample " + str(_sample) + " has neither hifi nor ont data in the "
+            "sample sheet; at least one is required")

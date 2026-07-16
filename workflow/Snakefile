@@ -37,55 +37,55 @@ onerror:
 # resolution pulls in the upstream rules (bam_refiner, nanomonsv_parse/get/
 # postprocess, clairs, deepsomatic) automatically.
 def get_all_targets():
+    # Targets are enumerated per available sequencing type so HiFi-only and
+    # ONT-only samples work. Per-sample rules (methylation) use the sample's own
+    # seqtypes; tumor/normal callers (nanomonsv, clairs, deepsomatic,
+    # copynumber, SV/mutation annotation) use paired_seqtypes(tumor) — the
+    # seqtypes present for BOTH the tumor and its paired normal.
     targets = []
     all_samples = list(samples.index.get_level_values("sample"))
 
-    # methylation (per sample, both seqtypes)
-    targets.extend(expand(
-        "methylation/{sample}/{seqtype}/output",
-        sample=all_samples,
-        seqtype=["hifi", "ont"]
-    ))
+    # methylation (per sample, per available seqtype)
+    for sample in all_samples:
+        for seqtype in sample_seqtypes(sample):
+            targets.append("methylation/{}/{}/output".format(sample, seqtype))
 
-    # copynumber (per tumor)
+    # copynumber (per tumor; uses the primary paired seqtype internally)
     targets.extend(expand("copynumber/{tumor}/output/{tumor}.copynumber.png", tumor=tumors))
 
-    # nanomonsv: insert classify + connect + merge
-    targets.extend(expand(
-        "nanomonsv/{seqtype}/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt",
-        tumor=tumors,
-        seqtype=["hifi", "ont"]
-    ))
-    targets.extend(expand(
-        "nanomonsv/{seqtype}/{tumor}.nanomonsv.connect.txt",
-        tumor=tumors,
-        seqtype=["hifi", "ont"]
-    ))
-    targets.extend(expand("nanomonsv/{tumor}.nanomonsv.result.merged.txt", tumor=tumors))
+    for tumor in tumors:
+        seqtypes = paired_seqtypes(tumor)
 
-    # point-mutation postprocess leaves
-    targets.extend(expand("clairs_post/{tumor}/{tumor}.haplotyped.bed", tumor=tumors))
-    targets.extend(expand("deepsomatic_post/{tumor}/{tumor}.haplotyped.bed", tumor=tumors))
+        # nanomonsv: insert classify (per available seqtype).
+        for seqtype in seqtypes:
+            targets.append(
+                "nanomonsv/{}/{}.nanomonsv.new_result.sv_typed.insert_classified.txt".format(seqtype, tumor))
+            # connect is optional (not used in the paper); off by default.
+            if config.get("run_nanomonsv_connect", False):
+                targets.append(
+                    "nanomonsv/{}/{}.nanomonsv.connect.txt".format(seqtype, tumor))
+        # nanomonsv merge (combine HiFi+ONT) is optional (not used in the
+        # paper); off by default, and only meaningful when both seqtypes exist.
+        if config.get("run_nanomonsv_merge", False) and len(seqtypes) >= 2:
+            targets.append("nanomonsv/{}.nanomonsv.result.merged.txt".format(tumor))
 
-    # SV annotation + reclassification
-    targets.extend(expand(
-        "annotate_sv/{tumor}/{seqtype}/{tumor}.PRCGAP.nanomonsv_results.annotated.txt",
-        tumor=tumors,
-        seqtype=["hifi", "ont"],
-    ))
-    targets.extend(expand(
-        "annotate_sv/{tumor}/{tumor}.{seqtype}.PRCGAP.nanomonsv_results.reclassified.txt",
-        tumor=tumors,
-        seqtype=["hifi", "ont"],
-    ))
+        # SV annotation + reclassification (per available seqtype)
+        for seqtype in seqtypes:
+            targets.append(
+                "annotate_sv/{}/{}/{}.PRCGAP.nanomonsv_results.annotated.txt".format(tumor, seqtype, tumor))
+            targets.append(
+                "annotate_sv/{}/{}.{}.PRCGAP.nanomonsv_results.reclassified.txt".format(tumor, tumor, seqtype))
 
-    # Point-mutation annotation (per tool: clairs, deepsomatic; per mode: snv, indel)
-    targets.extend(expand(
-        "annotate_{mode}/{tumor}/{tool}/{tumor}.{tool}.{mode}.annotated.txt",
-        tumor=tumors,
-        tool=["clairs", "deepsomatic"],
-        mode=["snv", "indel"],
-    ))
+        # point-mutation postprocess leaves + annotation
+        # (per caller × per available seqtype; annotation additionally per mode)
+        for seqtype in seqtypes:
+            for tool in ("clairs", "deepsomatic"):
+                targets.append(
+                    "{}_post/{}/{}/{}.haplotyped.bed".format(tool, tumor, seqtype, tumor))
+                for mode in ("snv", "indel"):
+                    targets.append(
+                        "annotate_{}/{}/{}/{}/{}.{}.{}.annotated.txt".format(
+                            mode, tumor, tool, seqtype, tumor, tool, mode))
 
     return targets
 

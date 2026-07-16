@@ -311,6 +311,31 @@ properties:
     description: sex of the sample (female or male)
     enum: ["female", "male"]
 
+  run_nanomonsv_connect:
+    type: boolean
+    description: |
+      run the optional nanomonsv `connect` step (not used in the paper;
+      default false).
+  run_nanomonsv_merge:
+    type: boolean
+    description: |
+      run the optional nanomonsv `merge` step that combines the HiFi and ONT
+      results (not used in the paper; default false; only runs when both
+      seqtypes are present).
+
+  clairs_model:
+    type: string
+    description: |
+      ClairS platform model (applies to every seqtype that ClairS runs on).
+      Default hifi_sequel2. Pick the value matching your data: hifi_sequel2 or
+      hifi_revio for HiFi; ont_r10_dorado_sup_5khz_ssrs or
+      ont_r10_dorado_sup_4khz for ONT.
+    enum:
+      - hifi_sequel2
+      - hifi_revio
+      - ont_r10_dorado_sup_5khz_ssrs
+      - ont_r10_dorado_sup_4khz
+
   simple_repeat:
     type: string
     description: path to simple repeat regions file

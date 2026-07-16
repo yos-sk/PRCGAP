@@ -4,8 +4,11 @@
 
 rule copynumber:
     input:
-        tumor_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
-        normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
+        # Copy number uses a single seqtype: HiFi if available, else ONT
+        # (primary_paired_seqtype = the preferred seqtype present for both the
+        # tumor and its paired normal).
+        tumor_bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(wc.tumor, primary_paired_seqtype(wc.tumor), wc.tumor),
+        normal_bam=lambda wc: "bam_refiner/{}/{}/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), primary_paired_seqtype(wc.tumor), get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
         reference=config.get("chm13_fasta", ""),
