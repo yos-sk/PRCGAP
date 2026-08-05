@@ -56,4 +56,4 @@ RUN wget https://github.com/yos-sk/mutation_postprocess/archive/refs/tags/v0.1.2
 
 ENV PATH="/opt/mutation_postprocess-0.1.2/target/release:$PATH"
 
-CMD ["/bin/bash"]ls
+CMD ["/bin/bash"]
