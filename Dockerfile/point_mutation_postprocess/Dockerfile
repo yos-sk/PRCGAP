@@ -48,9 +48,12 @@ WORKDIR /opt
 RUN wget https://github.com/yos-sk/mutation_postprocess/archive/refs/tags/v0.1.2.tar.gz && \
     tar zxf v0.1.2.tar.gz && \
     cd mutation_postprocess-0.1.2 && \
+    cargo generate-lockfile && \
+    cargo update -p hts-sys --precise 2.2.0 && \
     cargo build --release && \
     cd .. && rm v0.1.2.tar.gz
 
+
 ENV PATH="/opt/mutation_postprocess-0.1.2/target/release:$PATH"
 
-CMD ["/bin/bash"]
+CMD ["/bin/bash"]ls

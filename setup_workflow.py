@@ -5,6 +5,7 @@ Generates config.yaml and a runner shell script from command-line arguments.
 """
 
 import argparse
+import json
 import os
 import stat
 import sys
@@ -193,6 +194,34 @@ def create_config(args):
     return config
 
 
+def _is_slurm_profile(profile: str) -> bool:
+    """True when the profile path looks like a SLURM profile (name contains
+    'slurm'). Used to decide whether the runner needs #SBATCH headers."""
+    return bool(profile) and "slurm" in os.path.basename(os.path.normpath(profile)).lower()
+
+
+def _profile_partition(profile_dir: Path):
+    """Extract the partition from <profile>/settings.json SBATCH_DEFAULTS.
+
+    Returns the partition string (e.g. 'mjobs,rjobs') or None when it cannot be
+    determined (missing settings.json, absent/empty partition key). The runner
+    omits the '#SBATCH -p' line in that case, deferring to SLURM's default
+    partition.
+    """
+    settings = profile_dir / "settings.json"
+    if not settings.is_file():
+        return None
+    try:
+        defaults = json.loads(settings.read_text()).get("SBATCH_DEFAULTS", "")
+    except (json.JSONDecodeError, OSError):
+        return None
+    for tok in defaults.split():
+        if tok.startswith("partition="):
+            part = tok.split("=", 1)[1]
+            return part or None
+    return None
+
+
 def write_runner(args, config_path: Path, runner_path: Path):
     """Emit a runner shell script invoking snakemake.
 
@@ -208,7 +237,25 @@ def write_runner(args, config_path: Path, runner_path: Path):
     output_dir = _abs(args.output_dir)
     config_abs = _abs(str(config_path))
 
-    cmd_lines = ["#!/bin/bash", "set -euo pipefail", ""]
+    cmd_lines = ["#!/bin/bash"]
+
+    # When the runner drives a SLURM profile, make the driver itself a batch job
+    # by emitting #SBATCH headers directly below the shebang. The partition is
+    # read from the profile's settings.json so it stays defined in one place; if
+    # it can't be determined, the -p line is omitted and SLURM's default
+    # partition applies.
+    if _is_slurm_profile(args.profile):
+        cmd_lines += [
+            "#SBATCH -c 1",
+            "#SBATCH --mem-per-cpu=8G",
+            "#SBATCH -J PRCGAP",
+        ]
+        partition = _profile_partition(Path(_abs(args.profile)))
+        if partition:
+            cmd_lines.append(f"#SBATCH -p {partition}")
+        cmd_lines.append("#SBATCH -o log/%x_%j.log -e log/%x_%j.log")
+
+    cmd_lines += ["set -euo pipefail", ""]
 
     # Targets to build. When --targets is given, bake them in as defaults so the
     # runner builds only those (e.g. copynumber alone); targets passed on the
