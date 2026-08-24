@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""Windowed tumor/normal depth from per-base depth BEDs.
+
+No longer on the pipeline path: copynumber_depth.sh measures the windows with
+mosdepth and windows_to_tsv.py writes this same table. Kept because it defines
+the window order and the fractional window index that split_gaps.py,
+plot_copy_number.R and windows_to_tsv.py all reproduce.
+"""
 
 import sys
 import pysam

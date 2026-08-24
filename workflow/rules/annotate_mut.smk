@@ -27,22 +27,34 @@
 # postprocess directory layout: <tool>_post/{tumor}/{seqtype}/... .
 
 
-def _mut_other_vcf(wildcards):
-    """Return the bgzipped+tabix-indexed VCF used for the `other` cross-check.
+def _mut_other_vcf_path(wildcards):
+    """The bgzipped+tabix-indexed VCF for the `other` cross-check, or None.
+
+    The cross-check compares the two callers WITHIN the same seqtype, so it
+    only applies when config mutation_caller selects both. With a single caller
+    the `point_mutation_other` column is left empty rather than pulling the
+    unselected caller's whole chain into the DAG.
 
     The raw `deepsomatic/{tumor}/{seqtype}` / `clairs/{tumor}/{seqtype}`
     directory outputs aren't tracked at the file level, so we always go
     through the postprocess + index pipeline:
       `<tool>_post/{tumor}/{seqtype}/output.vcf.gz` ──► `mut_vcf_index` rule
       ──► `<tool>_post/{tumor}/{seqtype}/output.tabix.vcf.gz` (+ `.tbi`)
-    The cross-check compares the two callers WITHIN the same seqtype.
     Both clairs and deepsomatic carry SNV+INDEL together at this stage
     (clairs_postprocess_prepare concatenates output.vcf + indel.vcf;
     deepsomatic_postprocess_prepare copies output.vcf as-is).
     """
+    if len(mutation_callers()) < 2:
+        return None
     other_tool = "deepsomatic" if wildcards.tool == "clairs" else "clairs"
     return "{}_post/{}/{}/output.tabix.vcf.gz".format(
         other_tool, wildcards.tumor, wildcards.seqtype)
+
+
+def _mut_other_vcf(wildcards):
+    """Input-list form of _mut_other_vcf_path: empty when there is no other caller."""
+    path = _mut_other_vcf_path(wildcards)
+    return [path] if path else []
 
 
 def _per_tool_indel_vcf(wildcards):
@@ -54,8 +66,7 @@ def _per_tool_indel_vcf(wildcards):
 
 
 def _coordconv_snv_input(wildcards, ref):
-    chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
-    if _opt_path(chain_key):
+    if chain_file(wildcards.tumor, ref):
         return (
             "annotate_snv/" + wildcards.tumor + "/" + wildcards.tool + "/"
             + wildcards.seqtype + "/workspace/"
@@ -65,8 +76,7 @@ def _coordconv_snv_input(wildcards, ref):
 
 
 def _liftvcf_indel_input(wildcards, ref):
-    chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
-    if _opt_path(chain_key):
+    if chain_file(wildcards.tumor, ref):
         return (
             "annotate_indel/" + wildcards.tumor + "/" + wildcards.tool + "/"
             + wildcards.seqtype + "/workspace/"
@@ -116,6 +126,8 @@ rule mut_vcf_index:
         mem_mb=get_mem_mb("mut_vcf_index", 4000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_vcf_index.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_vcf_index.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -162,6 +174,8 @@ rule prep_mut:
         mem_mb=get_mem_mb("prep_mut", 8000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_{mode}_prep.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_{mode}_prep.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -183,12 +197,13 @@ rule prep_mut:
 rule coordconv_snv_grch38:
     input:
         bed="annotate_snv/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.snv.bed",
+        chain=lambda wc: as_input(chain_file(wc.tumor, "GRCh38")),
     output:
         "annotate_snv/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.snv.coordconv_GRCh38.bed"
     message:
         "--- coordconv (GRCh38) SNV for {wildcards.tumor} {wildcards.tool} ({wildcards.seqtype})"
     params:
-        chain=_opt_path("chain_to_grch38"),
+        chain=lambda wc: chain_file(wc.tumor, "GRCh38"),
     wildcard_constraints:
         tool="clairs|deepsomatic",
         seqtype="hifi|ont",
@@ -198,6 +213,8 @@ rule coordconv_snv_grch38:
         mem_mb=get_mem_mb("coordconv_mut", 8000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_snv_coordconv_GRCh38.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_snv_coordconv_GRCh38.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -209,12 +226,13 @@ rule coordconv_snv_grch38:
 rule coordconv_snv_chm13:
     input:
         bed="annotate_snv/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.snv.bed",
+        chain=lambda wc: as_input(chain_file(wc.tumor, "chm13")),
     output:
         "annotate_snv/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.snv.coordconv_chm13.bed"
     message:
         "--- coordconv (chm13) SNV for {wildcards.tumor} {wildcards.tool} ({wildcards.seqtype})"
     params:
-        chain=_opt_path("chain_to_chm13"),
+        chain=lambda wc: chain_file(wc.tumor, "chm13"),
     wildcard_constraints:
         tool="clairs|deepsomatic",
         seqtype="hifi|ont",
@@ -224,6 +242,8 @@ rule coordconv_snv_chm13:
         mem_mb=get_mem_mb("coordconv_mut", 8000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_snv_coordconv_chm13.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_snv_coordconv_chm13.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -254,6 +274,8 @@ rule bed2vcf_indel:
         mem_mb=get_mem_mb("bed2vcf_mut", 8000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_indel_bed2vcf.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_indel_bed2vcf.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -287,6 +309,8 @@ rule indel_hap_reference:
         mem_mb=get_mem_mb("indel_hap_reference", 4000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_indel_hap_reference.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_indel_hap_reference.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -300,13 +324,14 @@ rule liftvcf_indel_grch38:
     input:
         vcf="annotate_indel/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.indel.vcf",
         ref_fa="annotate_indel/{tumor}/{tool}/{seqtype}/workspace/reference.fa",
+        chain=lambda wc: as_input(chain_file(wc.tumor, "GRCh38")),
     output:
         vcf="annotate_indel/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.indel.liftvcf_GRCh38.vcf.gz",
         rej="annotate_indel/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.indel.liftvcf_GRCh38.reject.vcf.gz",
     message:
         "--- transanno liftvcf (GRCh38) INDEL for {wildcards.tumor} {wildcards.tool} ({wildcards.seqtype})"
     params:
-        chain=_opt_path("chain_to_grch38"),
+        chain=lambda wc: chain_file(wc.tumor, "GRCh38"),
         query=_opt_path("grch38_fasta"),
     wildcard_constraints:
         tool="clairs|deepsomatic",
@@ -317,6 +342,8 @@ rule liftvcf_indel_grch38:
         mem_mb=get_mem_mb("liftvcf_mut", 16000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_indel_liftvcf_GRCh38.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_indel_liftvcf_GRCh38.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -335,13 +362,14 @@ rule liftvcf_indel_chm13:
     input:
         vcf="annotate_indel/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.indel.vcf",
         ref_fa="annotate_indel/{tumor}/{tool}/{seqtype}/workspace/reference.fa",
+        chain=lambda wc: as_input(chain_file(wc.tumor, "chm13")),
     output:
         vcf="annotate_indel/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.indel.liftvcf_chm13.vcf.gz",
         rej="annotate_indel/{tumor}/{tool}/{seqtype}/workspace/{tumor}.{tool}.indel.liftvcf_chm13.reject.vcf.gz",
     message:
         "--- transanno liftvcf (chm13) INDEL for {wildcards.tumor} {wildcards.tool} ({wildcards.seqtype})"
     params:
-        chain=_opt_path("chain_to_chm13"),
+        chain=lambda wc: chain_file(wc.tumor, "chm13"),
         query=_opt_path("chm13_fasta"),
     wildcard_constraints:
         tool="clairs|deepsomatic",
@@ -352,6 +380,8 @@ rule liftvcf_indel_chm13:
         mem_mb=get_mem_mb("liftvcf_mut", 16000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_indel_liftvcf_chm13.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_indel_liftvcf_chm13.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -379,6 +409,7 @@ rule annotate_mut_main:
         hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
         grch38_lift=lambda wc: _lift_input(wc, "GRCh38"),
         chm13_lift=lambda wc: _lift_input(wc, "chm13"),
+        gff=lambda wc: as_input(liftoff_gff(wc.tumor)),
     output:
         "annotate_{mode}/{tumor}/{tool}/{seqtype}/{tumor}.{tool}.{mode}.annotated.txt"
     message:
@@ -389,7 +420,8 @@ rule annotate_mut_main:
         mode="{mode}",
         output_dir="annotate_{mode}/{tumor}/{tool}/{seqtype}",
         work_dir="annotate_{mode}/{tumor}/{tool}/{seqtype}/workspace",
-        gff_file=_opt_path("gff_file"),
+        other_vcf=lambda wc: _mut_other_vcf_path(wc) or "",
+        gff_file=lambda wc: liftoff_gff(wc.tumor),
         cgc=_opt_path("cancer_gene_census_tsv"),
         cmrg=_opt_path("cmrg_gene_tsv"),
         gencode=_opt_path("gencode_transcript_bed"),
@@ -411,6 +443,8 @@ rule annotate_mut_main:
         mem_mb=get_mem_mb("annotate_mut", 16000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_{mode}.log"
+    benchmark:
+        "benchmarks/annotate_mut/{tumor}_{tool}_{seqtype}_{mode}.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -420,7 +454,7 @@ rule annotate_mut_main:
             "{params.tool}" \
             "{params.mode}" \
             "{input.prep_bed}" \
-            "{input.other_vcf}" \
+            "{params.other_vcf}" \
             "{input.hap1}" \
             "{input.hap2}" \
             "{params.output_dir}" \

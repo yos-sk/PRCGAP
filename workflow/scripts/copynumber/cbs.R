@@ -25,6 +25,10 @@ MIN_TUMOR_COVERAGE <- 10000
 DEFAULT_PLOIDY <- 1
 DEFAULT_BINWIDTH <- 0.05
 UNDO_SD_THRESHOLD <- 1.5
+# segment() defaults to p.method = "hybrid", whose permutation test draws from
+# the RNG, so an unseeded run does not reproduce: the same input segmented twice
+# differed at a median of 16 breakpoints on H2009 hap1.
+DEFAULT_SEED <- 42
 # half_win auto-ploidy (see estimate_ploidy_halfwin): a segment cluster at
 # [0.4,0.6]*baseline carrying > HALFWIN_CUTOFF of the genome length marks a
 # whole-genome doubling; recurse up to MAX_DOUBLINGS times (ploidy 1,2,4,8).
@@ -58,7 +62,11 @@ parse_arguments <- function() {
     make_option(c("-y", "--ploidy-out"),
                 type = "character",
                 default = NULL,
-                help = "Write the resolved tumor ploidy (integer) to this file, for downstream use")
+                help = "Write the resolved tumor ploidy (integer) to this file, for downstream use"),
+    make_option(c("-S", "--seed"),
+                type = "integer",
+                default = DEFAULT_SEED,
+                help = "RNG seed for the CBS permutation test; 0 leaves the RNG unseeded [default: %default]")
   )
 
   opt <- parse_args(OptionParser(option_list = option_list))
@@ -147,7 +155,7 @@ prepare_cbs_data <- function(filtered_data) {
 }
 
 # Perform CBS segmentation
-perform_cbs <- function(cna_data, sample_name) {
+perform_cbs <- function(cna_data, sample_name, seed = DEFAULT_SEED) {
   # Create CNA object
   CNA_object <- CNA(
     genomdat = cna_data$log_ratio,
@@ -159,6 +167,11 @@ perform_cbs <- function(cna_data, sample_name) {
 
   # Smooth the data
   smoothed_CNA_object <- smooth.CNA(CNA_object)
+
+  # Seed immediately before the only RNG consumer in the script.
+  if (!is.null(seed) && !is.na(seed) && seed != 0) {
+    set.seed(seed)
+  }
 
   # Segment the data
   segment_CNA_object <- segment(
@@ -202,7 +215,12 @@ main <- function() {
 
   cna_data <- prepare_cbs_data(filtered_data)
   cat("Performing circular binary segmentation (on raw depth ratio)...\n")
-  segment_result <- perform_cbs(cna_data, opt$sample)
+  if (opt$seed != 0) {
+    cat("CBS permutation-test seed:", opt$seed, "\n")
+  } else {
+    cat("CBS permutation-test RNG left unseeded; segments will not reproduce\n")
+  }
+  segment_result <- perform_cbs(cna_data, opt$sample, opt$seed)
   segs <- segment_result$output
 
   # Resolve ploidy and the per-copy unit mu from the CBS segment levels.

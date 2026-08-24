@@ -66,4 +66,12 @@ RUN wget https://github.com/informationsea/transanno/releases/download/v0.4.1/tr
     chmod +x /usr/local/bin/transanno && \
     rm -rf transanno-x86_64-unknown-linux-musl*
 
+# ULTRA 1.2.1 (https://github.com/TravisWheelerLab/ULTRA) — tandem repeat
+# annotator. Built from source with CMake (>=3.12 required; focal ships
+# 3.16). `make install` puts the `ultra` binary in /usr/local/bin.
+RUN wget https://github.com/TravisWheelerLab/ULTRA/archive/refs/tags/1.2.1.tar.gz -O ULTRA-1.2.1.tar.gz && \
+    tar zxf ULTRA-1.2.1.tar.gz && \
+    cd ULTRA-1.2.1 && cmake . && make && make install && \
+    cd .. && rm -rf ULTRA-1.2.1 ULTRA-1.2.1.tar.gz
+
 CMD ["/bin/bash"]

@@ -73,30 +73,20 @@ samtools sort -@ ${THREAD} -m 2G -n ${OUTPUT_BAM_PREFIX}.unsorted -o ${OUTPUT_BA
 rm ${OUTPUT_BAM_PREFIX}.unsorted
 
 # ---------- Step 4: Refine BAM using precomputed k-mer files ----------
-mkdir -p ${WORK_DIR}/split
-SIZE=$(split_bam size --input-file ${OUTPUT_BAM_PREFIX}.bam)
-split_bam split \
-    --input-file ${OUTPUT_BAM_PREFIX}.bam \
-    --output-dir ${WORK_DIR}/split \
-    --input-size ${SIZE} \
-    --num-split ${THREAD}
-
-for i in $(seq 0 $(( ${THREAD} - 1 ))); do
-    bam_refiner refine \
-        --input-bam ${WORK_DIR}/split/${i}.bam \
-        --output-bam ${WORK_DIR}/split/${i}.refined.bam \
-        --hap1-tabix ${KMER_DIR}/hap1_cnt_kmerposition.bed.gz \
-        --hap2-tabix ${KMER_DIR}/hap2_cnt_kmerposition.bed.gz \
-        --hap1-list ${KMER_DIR}/hap1_list.txt.gz \
-        --hap2-list ${KMER_DIR}/hap2_list.txt.gz \
-        --kmer-size 21 \
-        1>${WORK_DIR}/split/${i}.bam_refiner.tsv 2>${WORK_DIR}/split/${i}.bam_refiner.log &
-done
-wait
-
-cat ${WORK_DIR}/split/*.bam_refiner.tsv > ${OUTPUT_DIR}/bam_refiner_result.tsv
-cat ${WORK_DIR}/split/*.bam_refiner.log > ${OUTPUT_DIR}/bam_refiner.log
-samtools merge -@ ${THREAD} -f -o ${OUTPUT_DIR}/${SAMPLE}_bam_refined.bam ${WORK_DIR}/split/*.refined.bam
+# bam_refiner parallelises internally, so the read-name-sorted BAM no longer has
+# to be split into ${THREAD} files and merged back: one call replaces the
+# split_bam + for-loop + samtools merge trio (and the extra copy of the BAM on
+# disk that came with it).
+bam_refiner refine \
+    --input-bam ${OUTPUT_BAM_PREFIX}.bam \
+    --output-bam ${OUTPUT_DIR}/${SAMPLE}_bam_refined.bam \
+    --hap1-tabix ${KMER_DIR}/hap1_cnt_kmerposition.bed.gz \
+    --hap2-tabix ${KMER_DIR}/hap2_cnt_kmerposition.bed.gz \
+    --hap1-list ${KMER_DIR}/hap1_list.txt.gz \
+    --hap2-list ${KMER_DIR}/hap2_list.txt.gz \
+    --kmer-size 21 \
+    --threads ${THREAD} \
+    1>${OUTPUT_DIR}/bam_refiner_result.tsv 2>${OUTPUT_DIR}/bam_refiner.log
 
 samtools sort -@ ${THREAD} -o ${OUTPUT_DIR}/${SAMPLE}_bam_refined.sorted.bam ${OUTPUT_DIR}/${SAMPLE}_bam_refined.bam
 samtools index -@ ${THREAD} ${OUTPUT_DIR}/${SAMPLE}_bam_refined.sorted.bam
@@ -105,9 +95,21 @@ rm ${OUTPUT_DIR}/${SAMPLE}_bam_refined.bam
 gzip -f ${OUTPUT_DIR}/bam_refiner_result.tsv
 gzip -f ${OUTPUT_DIR}/bam_refiner.log
 
+# Reads spanning no haplotype-specific locus have no ratio to report, so they get
+# this prior instead of a bogus 1.0. The values are picked to land just above the
+# 0.6 Kmer_ratio cutoff applied downstream, which is what keeps those reads in play;
+# leaving the option off would fall back to 0.5 and put every one of them on the
+# discarded side. ONT is noisier, so its no-evidence reads get less credit.
+if [ "${DATA}" = "hifi" ]; then
+    PRIOR_MEAN=0.8
+else
+    PRIOR_MEAN=0.6
+fi
+
 bam_refiner kmer-ratio \
     ${OUTPUT_DIR}/${SAMPLE}_bam_refined.sorted.bam \
     --threads ${THREAD} \
+    --prior-mean ${PRIOR_MEAN} \
 > ${OUTPUT_DIR}/${SAMPLE}_kmer_ratio.txt
 
 rm -rf ${WORK_DIR}

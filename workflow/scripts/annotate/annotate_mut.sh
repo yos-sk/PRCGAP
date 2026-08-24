@@ -17,7 +17,8 @@
 #   $2  TOOL         clairs | deepsomatic
 #   $3  MODE         snv | indel
 #   $4  PREP_BED     14-col haplotyped.bed filtered to SNV or INDEL rows
-#   $5  OTHER_VCF    other tool's vcf for the "other" cross-check step
+#   $5  OTHER_VCF    other tool's vcf for the "other" cross-check step; empty to
+#                    skip it and leave point_mutation_other blank
 #   $6  HAP1_FA
 #   $7  HAP2_FA
 #   $8  OUTPUT_DIR
@@ -157,10 +158,17 @@ else
     CUR="${NEXT}"
 fi
 
-# 7. other (cross-check with the other tool's vcf)
-NEXT="${WORK_DIR}/${PREFIX}.other.txt"
-${ADD} other -i "${CUR}" -o "${NEXT}" -j "${OTHER_VCF}"
-CUR="${NEXT}"
+# 7. other (cross-check with the other tool's vcf; empty when only one caller
+#    is selected, in which case the column is left blank)
+if [ -n "${OTHER_VCF}" ]; then
+    NEXT="${WORK_DIR}/${PREFIX}.other.txt"
+    ${ADD} other -i "${CUR}" -o "${NEXT}" -j "${OTHER_VCF}"
+    CUR="${NEXT}"
+else
+    NEXT="${WORK_DIR}/${PREFIX}.other.txt"
+    append_empty_cols "${CUR}" "${NEXT}" point_mutation_other
+    CUR="${NEXT}"
+fi
 
 # 8. check_homozygous: collapse haplotype1/haplotype2 pairs that lift to
 #    the same GRCh38 / CHM13 site into `homozygous`. Two-pass when both

@@ -6,6 +6,7 @@ SCRIPTS_DIR = os.path.join(workflow.basedir, "scripts")
 # Include modular rule files
 # ====================================================================
 
+include: "annotation.smk"
 include: "bam_refiner.smk"
 include: "methylation.smk"
 include: "copynumber.smk"

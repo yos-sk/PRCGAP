@@ -30,28 +30,65 @@ def _image_path(explicit, images_dir, tool):
 # (module_name, default_threads, default_mem_mb) for each rule whose
 # resources can be overridden from the CLI.
 _RESOURCE_DEFAULTS = [
-    ("bam_refiner_kmer", 16, 128000),
-    ("bam_refiner", 16, 128000),
+    # In-workflow annotation (opt-in via --run-dna-brnn / --run-liftoff /
+    # --run-chain-files).
+    # In-workflow annotation. Every rule is capped at 8 threads. liftoff keeps
+    # the 128 GB assembly_workflow declares for it (unmeasured here, and it did
+    # need that much); make_chain_files runs the same minimap2 asm5 as
+    # copynumber_ref_table, measured at 34.6 GB. dna_brnn is 8 GB against a
+    # measured 4.4 GB -- it only annotates satellite now that ref.table runs
+    # unmasked, so the plot's cen/sat track is its one consumer, and censat_bed
+    # supersedes it there (69 min per haplotype).
+    ("dna_brnn", 8, 8000),   # measured 4.4 GB / 69 min per haplotype
+    ("liftoff_reference", 1, 8000),
+    ("liftoff", 8, 96000),
+    ("liftoff_merge", 1, 16000),
+    ("prepare_mask_regions", 1, 10240),
+    ("make_chain_files", 8, 48000),             # same minimap2 asm5 shape as copynumber_ref_table, 34.6 GB there
+    ("chain_files_merge", 1, 8000),
+    # LINE-1 and tandem repeats: both are blastn/ULTRA over one haplotype, far
+    # lighter than the RepeatMasker route they replace.
+    ("line1", 8, 16000),
+    ("line1_merge", 1, 8000),
+    ("simple_repeat", 8, 32000),
+    ("simple_repeat_merge", 1, 8000),
+    ("bam_refiner_kmer", 8, 32000),  # measured 15.2 GB (H2009); HG008 2.3 GB
+    ("bam_refiner", 8, 64000),                  # measured 37.8 GB
     ("assembly_bwa_index", 1, 16000),
-    ("methylation", 16, 128000),
-    ("copynumber", 16, 128000),
-    ("nanomonsv_parse", 16, 128000),
-    ("nanomonsv_get", 16, 240000),
-    ("nanomonsv_postprocess", 1, 30000),
-    ("nanomonsv_insert_classify", 16, 128000),
+    ("methylation", 8, 32000),                  # measured 13.5 GB
+    ("copynumber", 8, 48000),                   # legacy fallback; matches copynumber_ref_table, the heaviest split rule
+    ("copynumber_reference", 1, 4000),    # measured 0.07 GB
+    ("copynumber_ref_table", 8, 48000),   # minimap2 unmasked: 34.1 GB at 8 threads
+    ("copynumber_ref_table_final", 1, 8000),
+    ("copynumber_depth", 4, 8000),        # mosdepth: measured 4.3 GB, flat in threads
+    ("copynumber_segment", 1, 4000),      # measured 188 MB (cbs.R + split_gaps.py)
+    ("copynumber_plot", 1, 4000),         # measured 0.23 GB
+    ("nanomonsv_parse", 8, 16000),              # measured 3.1 GB
+    ("nanomonsv_get", 8, 64000),                # measured 2.2 GB; --max_memory_minimap2 16 caps the aligner
+    ("nanomonsv_postprocess", 1, 8000),         # measured 0.1 GB
+    ("nanomonsv_insert_classify", 8, 64000),    # measured 54.9 GB -- the tightest of these
     ("nanomonsv_connect", 1, 30000),
     ("nanomonsv_merge", 1, 30000),
-    ("clairs", 16, 128000),
-    ("deepsomatic", 16, 128000),
+    # Callers are scattered over contig chunks: these are per-chunk resources.
+    # 8 threads / 32000 MB is the benchmarked setting
+    # (plan/mutation_calling_performance.md 6.6).
+    ("clairs", 8, 32000),
+    ("clairs_scatter_setup", 8, 16000),
+    ("clairs_chunks", 1, 4000),
+    ("clairs_merge", 1, 16000),
+    ("deepsomatic", 8, 32000),
+    ("deepsomatic_scatter_setup", 8, 16000),
+    ("deepsomatic_chunks", 1, 4000),
+    ("deepsomatic_merge", 1, 16000),
     ("clairs_postprocess", 1, 32000),
     ("clairs_postprocess_split", 1, 32000),
-    ("clairs_postprocess_realign", 16, 128000),
-    ("clairs_postprocess_pileup", 6, 240000),
+    ("clairs_postprocess_realign", 8, 16000),  # measured 0.1 GB (bwa on the candidate-flank FASTA)
+    ("clairs_postprocess_pileup", 8, 32000),
     ("clairs_postprocess_haplotype", 4, 64000),
     ("deepsomatic_postprocess", 1, 32000),
     ("deepsomatic_postprocess_split", 1, 32000),
-    ("deepsomatic_postprocess_realign", 16, 128000),
-    ("deepsomatic_postprocess_pileup", 6, 240000),
+    ("deepsomatic_postprocess_realign", 8, 16000),  # measured 0.1 GB (bwa on the candidate-flank FASTA)
+    ("deepsomatic_postprocess_pileup", 8, 32000),
     ("deepsomatic_postprocess_haplotype", 4, 64000),
     ("prep_sv", 1, 8000),
     ("coordconv_sv", 1, 8000),
@@ -66,6 +103,32 @@ _RESOURCE_DEFAULTS = [
     ("bed2vcf_mut", 1, 8000),
     ("liftvcf_mut", 1, 16000),
 ]
+
+
+# Rules split out of a formerly monolithic one inherit the parent rule's CLI
+# resources unless their own flag was passed, so an existing invocation that only
+# sets --copynumber-threads / --copynumber-mem-mb still sizes every split job.
+_RESOURCE_INHERIT = {
+    "copynumber_ref_table": "copynumber",
+    "copynumber_depth": "copynumber",
+    "copynumber_segment": "copynumber",
+    "copynumber_plot": "copynumber",
+}
+
+
+def _apply_resource_inheritance(args):
+    """Copy a parent rule's resources onto children whose flags were defaulted."""
+    declared = {name: (threads, mem_mb) for name, threads, mem_mb in _RESOURCE_DEFAULTS}
+    for child, parent in _RESOURCE_INHERIT.items():
+        if child not in declared or parent not in declared:
+            continue
+        for idx, attr in ((0, "threads"), (1, "mem_mb")):
+            parent_val = getattr(args, f"{parent}_{attr}")
+            if parent_val == declared[parent][idx]:
+                continue  # parent left at its default; nothing to propagate
+            if getattr(args, f"{child}_{attr}") != declared[child][idx]:
+                continue  # child was set explicitly; keep it
+            setattr(args, f"{child}_{attr}", parent_val)
 
 
 def _abs(path):
@@ -146,6 +209,9 @@ def create_config(args):
             "deepsomatic": _abs(_image_path(args.deepsomatic_image, args.images_dir, "deepsomatic")),
             "point_mutation_postprocess": _abs(_image_path(args.point_mutation_postprocess_image, args.images_dir, "point_mutation_postprocess")),
             "annotation": _abs(_image_path(args.annotation_image, args.images_dir, "annotation")),
+            "dna_nn": _abs(_image_path(args.dna_nn_image, args.images_dir, "dna_nn")),
+            "liftoff": _abs(_image_path(args.liftoff_image, args.images_dir, "liftoff")),
+            "chain_files": _abs(_image_path(args.chain_files_image, args.images_dir, "chain_files")),
         },
         "resources": {
             name: {
@@ -171,9 +237,15 @@ def create_config(args):
         "chm13_censat": _abs(args.chm13_censat) or "",
         # ---- pileup (mutation postprocess) params ----
         "pileup_no_baq": args.pileup_no_baq,
+        "pileup_max_depth": args.pileup_max_depth,
+        "pileup_num_chunks": args.pileup_num_chunks,
         # ---- optional nanomonsv steps (not used in the paper) ----
         "run_nanomonsv_connect": args.run_nanomonsv_connect,
         "run_nanomonsv_merge": args.run_nanomonsv_merge,
+        # ---- point-mutation caller ----
+        "mutation_caller": args.mutation_caller,
+        "caller_solo_contig_min_bp": args.caller_solo_contig_min_bp,
+        "deepsomatic_postprocess_variants_cpus": args.deepsomatic_postprocess_variants_cpus,
         # ---- ClairS platform model ----
         "clairs_model": args.clairs_model,
         # ---- annotation resources (optional) ----
@@ -190,8 +262,44 @@ def create_config(args):
         "gnomad_bed": _abs(args.gnomad_bed) or "",
         "gnomad_vcf": _abs(args.gnomad_vcf) or "",
         "grch38_fasta": _abs(args.grch38_fasta) or "",
+        # ---- in-workflow annotation (opt-in per step) ----
+        "run_dna_brnn": args.run_dna_brnn,
+        "run_liftoff": args.run_liftoff,
+        "run_chain_files": args.run_chain_files,
+        "run_line1": args.run_line1,
+        "run_simple_repeat": args.run_simple_repeat,
+        "grch38_gtf": _abs(args.grch38_gtf) or "",
+        "grch38_centromeres": _abs(args.grch38_centromeres) or "",
+        "grch38_exclusions": _abs(args.grch38_exclusions) or "",
     }
     return config
+
+def _is_slurm_profile(profile: str) -> bool:
+    """True when the profile path looks like a SLURM profile (name contains
+    'slurm'). Used to decide whether the runner needs #SBATCH headers."""
+    return bool(profile) and "slurm" in os.path.basename(os.path.normpath(profile)).lower()
+
+
+def _profile_partition(profile_dir: Path):
+    """Extract the partition from <profile>/settings.json SBATCH_DEFAULTS.
+
+    Returns the partition string (e.g. 'mjobs,rjobs') or None when it cannot be
+    determined (missing settings.json, absent/empty partition key). The runner
+    omits the '#SBATCH -p' line in that case, deferring to SLURM's default
+    partition.
+    """
+    settings = profile_dir / "settings.json"
+    if not settings.is_file():
+        return None
+    try:
+        defaults = json.loads(settings.read_text()).get("SBATCH_DEFAULTS", "")
+    except (json.JSONDecodeError, OSError):
+        return None
+    for tok in defaults.split():
+        if tok.startswith("partition="):
+            part = tok.split("=", 1)[1]
+            return part or None
+    return None
 
 
 def _is_slurm_profile(profile: str) -> bool:
@@ -237,7 +345,10 @@ def write_runner(args, config_path: Path, runner_path: Path):
     output_dir = _abs(args.output_dir)
     config_abs = _abs(str(config_path))
 
-    cmd_lines = ["#!/bin/bash"]
+    # `set -euo pipefail` is emitted below the #SBATCH block, not here: sbatch
+    # stops scanning for #SBATCH at the first command, so any header after a
+    # command is silently ignored.
+    cmd_lines = ["#!/bin/bash", ""]
 
     # When the runner drives a SLURM profile, make the driver itself a batch job
     # by emitting #SBATCH headers directly below the shebang. The partition is
@@ -249,6 +360,10 @@ def write_runner(args, config_path: Path, runner_path: Path):
             "#SBATCH -c 1",
             "#SBATCH --mem-per-cpu=8G",
             "#SBATCH -J PRCGAP",
+            # The driver only orchestrates, but it has to outlive the whole
+            # workflow. Without --time it inherits the partition's DefaultTime
+            # (3 days here), which killed a full-size run at 72%.
+            f"#SBATCH --time={args.driver_time}",
         ]
         partition = _profile_partition(Path(_abs(args.profile)))
         if partition:
@@ -365,6 +480,16 @@ Examples:
                         help="annotation image bundling pysam, samtools, coordconv, "
                              "and transanno — used by every SV/SNV/INDEL annotation "
                              "rule (default: <images-dir>/annotation.sif)")
+    parser.add_argument("--dna-nn-image", default=None,
+                        help="dna-brnn image (default: <images-dir>/dna_nn.sif); "
+                             "only used with --run-dna-brnn")
+    parser.add_argument("--liftoff-image", default=None,
+                        help="liftoff + minimap2 + gffread image (default: "
+                             "<images-dir>/liftoff.sif); only used with --run-liftoff")
+    parser.add_argument("--chain-files-image", default=None,
+                        help="minimap2 + transanno + chaintools + rustybam + "
+                             "paf2chain image (default: <images-dir>/chain_files.sif); "
+                             "only used with --run-chain-files")
 
     # ---------- Resources (per-module overrides) ----------
     res_group = parser.add_argument_group(
@@ -421,11 +546,20 @@ Examples:
                              "fills assembly gaps with reference satellite (optional). "
                              "CHM13 chromosome lengths are derived at plot time from "
                              "the --chm13-fasta via chromosome_length.py.")
-    parser.add_argument("--pileup-no-baq", default="false",
+    parser.add_argument("--pileup-no-baq", default="true",
                         choices=["true", "false"],
                         help="pass --no-BAQ to samtools mpileup in the "
-                             "clairs/deepsomatic pileup step (default: false). "
-                             "true skips BAQ computation, reducing memory/CPU.")
+                             "clairs/deepsomatic pileup step (default: true). "
+                             "true skips BAQ computation, cutting peak RSS ~26x "
+                             "for long-read/high-depth data; set false to keep BAQ.")
+    parser.add_argument("--pileup-max-depth", type=int, default=0,
+                        help="samtools mpileup -d/--max-depth for the pileup step "
+                             "(default 0 = samtools default 8000). Set >0 to cap "
+                             "per-file depth in very high-depth regions.")
+    parser.add_argument("--pileup-num-chunks", type=int, default=16,
+                        help="target maximum number of pileup chunks produced by "
+                             "split_bed.sh (default 16). Contigs are packed into "
+                             "balanced chunks pileup'd with `samtools mpileup -r`.")
     parser.add_argument("--run-nanomonsv-connect", action="store_true", default=False,
                         help="run the optional nanomonsv connect step "
                              "(not used in the paper; default off).")
@@ -433,6 +567,24 @@ Examples:
                         help="run the optional nanomonsv merge step combining "
                              "HiFi+ONT results (not used in the paper; default "
                              "off; only runs when both seqtypes are present).")
+    parser.add_argument("--mutation-caller", default="deepsomatic",
+                        choices=["deepsomatic", "clairs", "both"],
+                        help="point-mutation caller to run (default: "
+                             "deepsomatic). 'both' runs ClairS and DeepSomatic "
+                             "together, as earlier versions always did.")
+    parser.add_argument("--driver-time", default="14-00:00:00",
+                        help="#SBATCH --time for the snakemake driver job when a "
+                             "SLURM profile is used (default 14-00:00:00). The "
+                             "driver must outlive the whole workflow; without it "
+                             "the partition's DefaultTime applies.")
+    parser.add_argument("--caller-solo-contig-min-bp", type=int, default=1000000,
+                        help="contigs at least this long get their own caller "
+                             "chunk/job; shorter ones are bundled into one "
+                             "(default 1000000).")
+    parser.add_argument("--deepsomatic-postprocess-variants-cpus", type=int, default=1,
+                        help="worker count for DeepSomatic's postprocess_variants "
+                             "(default 1). Its own default is the node's core "
+                             "count and ignores the scheduler allocation.")
     parser.add_argument("--clairs-model", default="hifi_sequel2",
                         choices=["hifi_sequel2", "hifi_revio",
                                  "ont_r10_dorado_sup_5khz_ssrs",
@@ -473,7 +625,62 @@ Examples:
     ann_group.add_argument("--gnomad-vcf", default="",
                            help="gnomAD SNV/INDEL VCF.gz tabix-indexed (requires --chain-to-grch38)")
     ann_group.add_argument("--grch38-fasta", default="",
-                           help="GRCh38 reference FASTA (used as transanno --query for INDEL liftover)")
+                           help="GRCh38 reference FASTA. transanno --query for INDEL "
+                                "liftover, and the source for --run-liftoff / "
+                                "--run-chain-files.")
+
+    # ---------- in-workflow annotation generation (opt-in per step) ----------
+    gen_group = parser.add_argument_group(
+        "In-workflow annotation generation",
+        "Build the minimum annotation set inside PRCGAP instead of importing it "
+        "from assembly_workflow. Each switch supersedes the corresponding path "
+        "flag above, which can then be omitted. Run download_reference.sh to "
+        "fetch the reference inputs.",
+    )
+    # Satellite and chain generation are on by default, so a run given only the
+    # assembly and the CHM13/GRCh38 references produces those itself; pass
+    # --no-run-<step> to import them from assembly_workflow instead. liftoff is
+    # off by default and has to be asked for.
+    gen_group.add_argument("--run-dna-brnn", action=argparse.BooleanOptionalAction,
+                           default=True,
+                           help="build the per-haplotype dna-brnn satellite BEDs "
+                                "(supersedes --hap1-satellite / --hap2-satellite); "
+                                "default on, --no-run-dna-brnn to disable")
+    gen_group.add_argument("--run-liftoff", action=argparse.BooleanOptionalAction,
+                           default=False,
+                           help="build the liftoff gene GFF + GTF (supersedes "
+                                "--gff-file / --gtf-file); requires --grch38-fasta "
+                                "and --grch38-gtf; default off (heaviest step: "
+                                "8 threads x 128 GB per haplotype), pass "
+                                "--run-liftoff to enable")
+    gen_group.add_argument("--run-chain-files", action=argparse.BooleanOptionalAction,
+                           default=True,
+                           help="build the assembly → CHM13/GRCh38 chain files "
+                                "(supersedes --chain-to-chm13 / --chain-to-grch38); "
+                                "requires --grch38-fasta, --chm13-censat, "
+                                "--grch38-centromeres and --grch38-exclusions; "
+                                "default on, --no-run-chain-files to disable")
+    gen_group.add_argument("--run-line1", action=argparse.BooleanOptionalAction,
+                           default=True,
+                           help="build the full-length young LINE-1 BED that "
+                                "nanomonsv insert_classify uses (supersedes "
+                                "--line1-bed); needs no extra reference, the "
+                                "L1.3 query and Dfam subunit models ship with "
+                                "the workflow; default on, --no-run-line1 to "
+                                "disable")
+    gen_group.add_argument("--run-simple-repeat", action=argparse.BooleanOptionalAction,
+                           default=True,
+                           help="build the tandem repeat BED that nanomonsv get "
+                                "uses to filter indel-like SVs (supersedes "
+                                "--simple-repeat); default on, "
+                                "--no-run-simple-repeat to disable")
+    gen_group.add_argument("--grch38-gtf", default="",
+                           help="GRCh38 GTF with chr* contig names (plain .gtf) for "
+                                "--run-liftoff")
+    gen_group.add_argument("--grch38-centromeres", default="",
+                           help="UCSC hg38 centromeres.txt(.gz) for --run-chain-files")
+    gen_group.add_argument("--grch38-exclusions", default="",
+                           help="GRC exclusion regions BED for --run-chain-files")
 
     # ---------- Output / runner ----------
     parser.add_argument("--output-dir", default="results",
@@ -507,6 +714,7 @@ Examples:
                              "(ignored when --profile is set)")
 
     args = parser.parse_args()
+    _apply_resource_inheritance(args)
 
     config_path = Path(args.output)
     runner_path = Path(args.runner)

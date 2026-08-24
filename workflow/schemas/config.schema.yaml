@@ -48,6 +48,22 @@ properties:
           path to singularity image bundling all annotation tooling
           (pysam, samtools, coordconv, transanno). Used by every rule
           under workflow/rules/annotate_sv.smk and annotate_mut.smk.
+      dna_nn:
+        type: string
+        description: |
+          path to singularity image providing dna-brnn (+ bgzip/tabix).
+          Only needed when run_dna_brnn is true.
+      liftoff:
+        type: string
+        description: |
+          path to singularity image providing liftoff, minimap2 and gffread.
+          Only needed when run_liftoff is true.
+      chain_files:
+        type: string
+        description: |
+          path to singularity image providing minimap2, transanno, chaintools,
+          rustybam, paf2chain, bedtools and samtools. Only needed when
+          run_chain_files is true.
 
   resources:
     type: object
@@ -62,6 +78,42 @@ properties:
           type: number
           description: memory per job in MB for this tool
     properties:
+      dna_brnn:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 32000)
+      liftoff:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 128000)
+      prepare_mask_regions:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 1)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 10240)
+      make_chain_files:
+        type: object
+        properties:
+          threads:
+            type: number
+            description: number of threads (default 16)
+          mem_mb:
+            type: number
+            description: memory per job in MB (default 128000)
       bam_refiner_kmer:
         type: object
         properties:
@@ -211,10 +263,10 @@ properties:
         properties:
           threads:
             type: number
-            description: number of threads (default 6)
+            description: number of threads (default 16)
           mem_mb:
             type: number
-            description: memory per job in MB (default 240000)
+            description: memory per job in MB (default 32000; --no-BAQ + -r drops peak RSS well below this)
       clairs_postprocess_haplotype:
         type: object
         properties:
@@ -256,10 +308,10 @@ properties:
         properties:
           threads:
             type: number
-            description: number of threads (default 6)
+            description: number of threads (default 16)
           mem_mb:
             type: number
-            description: memory per job in MB (default 240000)
+            description: memory per job in MB (default 32000; --no-BAQ + -r drops peak RSS well below this)
       deepsomatic_postprocess_haplotype:
         type: object
         properties:
@@ -323,6 +375,31 @@ properties:
       results (not used in the paper; default false; only runs when both
       seqtypes are present).
 
+  mutation_caller:
+    type: string
+    description: |
+      point-mutation caller to run (default deepsomatic). "both" restores the
+      previous behaviour of running ClairS and DeepSomatic together.
+    enum: ["deepsomatic", "clairs", "both"]
+
+  caller_solo_contig_min_bp:
+    type: integer
+    minimum: 0
+    description: |
+      ClairS/DeepSomatic are scattered over contigs and a contig is never split.
+      A contig at least this long gets a job of its own; all shorter contigs
+      share a single job (default 1000000). 0 means strictly one job per contig.
+
+  deepsomatic_postprocess_variants_cpus:
+    type: integer
+    minimum: 0
+    description: |
+      worker count passed to DeepSomatic's postprocess_variants via
+      --postprocess_variants_extra_args (default 1). Its own default is the
+      node's online core count and it ignores both --num_shards and the
+      scheduler allocation, so leaving it unset forks one worker per physical
+      core. 0 disables postprocess parallelism entirely.
+
   clairs_model:
     type: string
     description: |
@@ -335,6 +412,30 @@ properties:
       - hifi_revio
       - ont_r10_dorado_sup_5khz_ssrs
       - ont_r10_dorado_sup_4khz
+
+  pileup_no_baq:
+    type: ["boolean", "string"]
+    description: |
+      pass --no-BAQ to samtools mpileup in the clairs/deepsomatic pileup step
+      (default true). Disabling BAQ cuts peak RSS of the pileup step ~26x for
+      long-read / high-depth data and keeps the read-base column format
+      (ref-relative `.,`) unchanged.
+
+  pileup_max_depth:
+    type: number
+    description: |
+      value for samtools mpileup -d/--max-depth in the pileup step. 0 (default)
+      uses the samtools default (8000). Set >0 to cap per-file depth in very
+      high-depth regions (a runtime lever; memory is already small once BAQ is
+      disabled).
+
+  pileup_num_chunks:
+    type: number
+    description: |
+      target maximum number of pileup chunks produced by split_bed.sh
+      (default 16). Contigs are packed into balanced chunks; each chunk is
+      pileup'd with `samtools mpileup -r` (index seek) instead of a full-BAM
+      scan.
 
   simple_repeat:
     type: string
@@ -396,7 +497,68 @@ properties:
     description: gnomAD SNV/INDEL VCF.gz tabix-indexed (optional SNV/INDEL annotation; requires chain_to_grch38)
   grch38_fasta:
     type: string
-    description: GRCh38 reference FASTA (used as transanno `--query` for INDEL liftover)
+    description: |
+      GRCh38 reference FASTA. Used as transanno `--query` for INDEL liftover,
+      and as the liftoff / chain-file source when run_liftoff or
+      run_chain_files is enabled.
+
+  # ---- in-workflow annotation (opt-in per step) ----
+  # When a switch is on, PRCGAP builds that annotation from the assembly and the
+  # references, and the generated path takes precedence over the corresponding
+  # config key (hap{1,2}_satellite / gff_file+gtf_file / chain_to_*), which may
+  # then be left empty.
+  run_dna_brnn:
+    type: boolean
+    description: |
+      build the per-haplotype dna-brnn satellite BEDs (supersedes
+      hap1_satellite / hap2_satellite). Default true.
+  run_liftoff:
+    type: boolean
+    description: |
+      build the liftoff gene GFF + GTF (supersedes gff_file / gtf_file).
+      Requires grch38_fasta and grch38_gtf. Default false — this is the
+      heaviest annotation step (16 threads x 128 GB per haplotype), so it is
+      opt-in; leave it off to supply gff_file / gtf_file instead.
+  run_line1:
+    type: boolean
+    description: |
+      build the full-length young LINE-1 BED (L1HS / L1PA2-L1PA5) that
+      nanomonsv insert_classify uses as its transduction source list
+      (supersedes line1_bed). Needs no extra reference: the L1.3 query and the
+      Dfam subunit models ship in workflow/resources/line1. Default true.
+  run_simple_repeat:
+    type: boolean
+    description: |
+      build the tandem repeat BED (ULTRA, period <= 10) that nanomonsv get uses
+      to drop indel-like SVs inside a repeat (supersedes simple_repeat).
+      Default true.
+  simple_repeat_min_copies:
+    type: integer
+    description: |
+      minimum repeat copy number to keep when run_simple_repeat is true.
+      Default 4.
+  run_chain_files:
+    type: boolean
+    description: |
+      build the assembly → CHM13/GRCh38 chain files (supersedes
+      chain_to_chm13 / chain_to_grch38). Requires chm13_fasta, grch38_fasta,
+      chm13_censat, grch38_centromeres and grch38_exclusions. Default true.
+
+  grch38_gtf:
+    type: string
+    description: |
+      GRCh38 GTF with chr* contig names (plain .gtf), lifted onto the assembly
+      by the liftoff rule. Required when run_liftoff is true.
+  grch38_centromeres:
+    type: string
+    description: |
+      UCSC hg38 centromeres table (centromeres.txt/.gz), masked out before
+      chain-file alignment. Required when run_chain_files is true.
+  grch38_exclusions:
+    type: string
+    description: |
+      GRC exclusion-regions BED (false duplications etc.), masked out before
+      chain-file alignment. Required when run_chain_files is true.
 
 required:
   - samplesheet

@@ -31,6 +31,8 @@ rule bam_refiner_kmer:
         mem_mb=get_mem_mb("bam_refiner_kmer", 32000)
     log:
         "logs/bam_refiner/{sample}_kmer.log"
+    benchmark:
+        "benchmarks/bam_refiner/{sample}_kmer.tsv"
     singularity:
         config.get("singularity_images", {}).get("bam_refiner", "")
     shell:
@@ -65,11 +67,13 @@ rule bam_refiner_hifi:
         kmer_dir=lambda wc: "bam_refiner/{}/kmer".format(get_kmer_source(wc.sample)),
         input_files=lambda wc: ",".join(get_sample_files_list(wc.sample, "hifi"))
     threads:
-        get_threads("bam_refiner", 16)
+        get_threads("bam_refiner", 8)
     resources:
         mem_mb=get_mem_mb("bam_refiner", 64000)
     log:
         "logs/bam_refiner/{sample}_hifi.log"
+    benchmark:
+        "benchmarks/bam_refiner/{sample}_hifi.tsv"
     singularity:
         config.get("singularity_images", {}).get("bam_refiner", "")
     shell:
@@ -106,11 +110,13 @@ rule bam_refiner_ont:
         kmer_dir=lambda wc: "bam_refiner/{}/kmer".format(get_kmer_source(wc.sample)),
         input_files=lambda wc: ",".join(get_sample_files_list(wc.sample, "ont"))
     threads:
-        get_threads("bam_refiner", 16)
+        get_threads("bam_refiner", 8)
     resources:
         mem_mb=get_mem_mb("bam_refiner", 64000)
     log:
         "logs/bam_refiner/{sample}_ont.log"
+    benchmark:
+        "benchmarks/bam_refiner/{sample}_ont.tsv"
     singularity:
         config.get("singularity_images", {}).get("bam_refiner", "")
     shell:

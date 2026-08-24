@@ -79,7 +79,7 @@ def get_all_targets():
         # point-mutation postprocess leaves + annotation
         # (per caller × per available seqtype; annotation additionally per mode)
         for seqtype in seqtypes:
-            for tool in ("clairs", "deepsomatic"):
+            for tool in mutation_callers():
                 targets.append(
                     "{}_post/{}/{}/{}.haplotyped.bed".format(tool, tumor, seqtype, tumor))
                 for mode in ("snv", "indel"):

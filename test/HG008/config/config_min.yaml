@@ -1,0 +1,235 @@
+output_dir: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/test/HG008/min
+samplesheet: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/test/HG008/config/samples_min.tsv
+chm13_fasta: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/test/HG008/resources/reference/chm13v2.0_maskedY_rCRS.fa
+singularity_images:
+  bam_refiner: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/bam_refiner.sif
+  methylation: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/methylation.sif
+  copynumber: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/copynumber.sif
+  nanomonsv: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/nanomonsv.sif
+  nanomonsv_postprocess: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/nanomonsv_postprocess.sif
+  clairs: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/clairs.sif
+  deepsomatic: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/deepsomatic.sif
+  point_mutation_postprocess: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/point_mutation_postprocess.sif
+  annotation: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/annotation.sif
+  dna_nn: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/dna_nn.sif
+  liftoff: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/liftoff.sif
+  chain_files: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/images/chain_files.sif
+resources:
+  dna_brnn:
+    threads: 8
+    mem_mb: 8000
+  liftoff_reference:
+    threads: 1
+    mem_mb: 8000
+  liftoff:
+    threads: 8
+    mem_mb: 96000
+  liftoff_merge:
+    threads: 1
+    mem_mb: 16000
+  prepare_mask_regions:
+    threads: 1
+    mem_mb: 10240
+  make_chain_files:
+    threads: 8
+    mem_mb: 48000
+  chain_files_merge:
+    threads: 1
+    mem_mb: 8000
+  line1:
+    threads: 8
+    mem_mb: 16000
+  line1_merge:
+    threads: 1
+    mem_mb: 8000
+  simple_repeat:
+    threads: 8
+    mem_mb: 32000
+  simple_repeat_merge:
+    threads: 1
+    mem_mb: 8000
+  bam_refiner_kmer:
+    threads: 8
+    mem_mb: 32000
+  bam_refiner:
+    threads: 8
+    mem_mb: 64000
+  assembly_bwa_index:
+    threads: 1
+    mem_mb: 16000
+  methylation:
+    threads: 8
+    mem_mb: 32000
+  copynumber:
+    threads: 8
+    mem_mb: 48000
+  copynumber_reference:
+    threads: 1
+    mem_mb: 4000
+  copynumber_ref_table:
+    threads: 8
+    mem_mb: 48000
+  copynumber_ref_table_final:
+    threads: 1
+    mem_mb: 8000
+  copynumber_depth:
+    threads: 4
+    mem_mb: 8000
+  copynumber_segment:
+    threads: 1
+    mem_mb: 4000
+  copynumber_plot:
+    threads: 1
+    mem_mb: 4000
+  nanomonsv_parse:
+    threads: 8
+    mem_mb: 16000
+  nanomonsv_get:
+    threads: 8
+    mem_mb: 64000
+  nanomonsv_postprocess:
+    threads: 1
+    mem_mb: 8000
+  nanomonsv_insert_classify:
+    threads: 8
+    mem_mb: 64000
+  nanomonsv_connect:
+    threads: 1
+    mem_mb: 30000
+  nanomonsv_merge:
+    threads: 1
+    mem_mb: 30000
+  clairs:
+    threads: 8
+    mem_mb: 32000
+  clairs_scatter_setup:
+    threads: 8
+    mem_mb: 16000
+  clairs_chunks:
+    threads: 1
+    mem_mb: 4000
+  clairs_merge:
+    threads: 1
+    mem_mb: 16000
+  deepsomatic:
+    threads: 8
+    mem_mb: 32000
+  deepsomatic_scatter_setup:
+    threads: 8
+    mem_mb: 16000
+  deepsomatic_chunks:
+    threads: 1
+    mem_mb: 4000
+  deepsomatic_merge:
+    threads: 1
+    mem_mb: 16000
+  clairs_postprocess:
+    threads: 1
+    mem_mb: 32000
+  clairs_postprocess_split:
+    threads: 1
+    mem_mb: 32000
+  clairs_postprocess_realign:
+    threads: 8
+    mem_mb: 16000
+  clairs_postprocess_pileup:
+    threads: 8
+    mem_mb: 32000
+  clairs_postprocess_haplotype:
+    threads: 4
+    mem_mb: 64000
+  deepsomatic_postprocess:
+    threads: 1
+    mem_mb: 32000
+  deepsomatic_postprocess_split:
+    threads: 1
+    mem_mb: 32000
+  deepsomatic_postprocess_realign:
+    threads: 8
+    mem_mb: 16000
+  deepsomatic_postprocess_pileup:
+    threads: 8
+    mem_mb: 32000
+  deepsomatic_postprocess_haplotype:
+    threads: 4
+    mem_mb: 64000
+  prep_sv:
+    threads: 1
+    mem_mb: 8000
+  coordconv_sv:
+    threads: 1
+    mem_mb: 8000
+  annotate_sv:
+    threads: 1
+    mem_mb: 16000
+  reclassify_sv:
+    threads: 1
+    mem_mb: 16000
+  gff_to_bed:
+    threads: 1
+    mem_mb: 8000
+  prep_mut:
+    threads: 1
+    mem_mb: 8000
+  coordconv_mut:
+    threads: 1
+    mem_mb: 8000
+  annotate_mut:
+    threads: 1
+    mem_mb: 16000
+  indel_hap_reference:
+    threads: 1
+    mem_mb: 8000
+  mut_vcf_index:
+    threads: 1
+    mem_mb: 8000
+  bed2vcf_mut:
+    threads: 1
+    mem_mb: 8000
+  liftvcf_mut:
+    threads: 1
+    mem_mb: 16000
+hap1_satellite: ''
+hap2_satellite: ''
+sex: female
+simple_repeat: ''
+gtf_file: ''
+gff_file: ''
+line1_bed: ''
+copynumber_binwidth: 0.05
+copynumber_hap1_label: Haplotype1
+copynumber_hap2_label: Haplotype2
+copynumber_ploidy_hap1: ''
+copynumber_ploidy_hap2: ''
+copynumber_plot_sex_chrom: 'false'
+chm13_censat: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/test/HG008/resources/reference/chm13v2.0_censat_v2.1.bed.gz
+pileup_no_baq: 'true'
+pileup_max_depth: 0
+pileup_num_chunks: 16
+run_nanomonsv_connect: false
+run_nanomonsv_merge: false
+mutation_caller: deepsomatic
+caller_solo_contig_min_bp: 1000000
+deepsomatic_postprocess_variants_cpus: 1
+clairs_model: hifi_sequel2
+chain_to_grch38: ''
+chain_to_chm13: ''
+repeat_masker_bed: ''
+segdup_bed: ''
+censat_bed: ''
+misassembly_hap1_bed: ''
+misassembly_hap2_bed: ''
+cancer_gene_census_tsv: ''
+cmrg_gene_tsv: ''
+gencode_transcript_bed: ''
+gnomad_bed: ''
+gnomad_vcf: ''
+grch38_fasta: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/test/HG008/resources/reference/GRCh38.d1.vd1.fa
+run_dna_brnn: true
+run_liftoff: true
+run_chain_files: true
+run_line1: true
+run_simple_repeat: true
+grch38_gtf: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/test/HG008/resources/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf
+grch38_centromeres: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/test/HG008/resources/reference/centromeres.txt.gz
+grch38_exclusions: /lustre10/home/yosakam11/projects/PRCGAP_develop/PRCGAP/test/HG008/resources/reference/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed
