@@ -253,7 +253,7 @@ run_chain_files: true          # → chain_to_chm13 / chain_to_grch38
                                #   (needs chm13_fasta, grch38_fasta, chm13_censat,
                                #    grch38_centromeres, grch38_exclusions)
 
-# Reference inputs for the steps above; see download_reference.sh.
+# Reference inputs for the steps above; see resource/scripts/download_reference.sh.
 grch38_gtf: ""                 # GRCh38 GTF with chr* contig names (plain .gtf)
 grch38_centromeres: ""         # UCSC hg38 centromeres.txt(.gz)
 grch38_exclusions: ""          # GRC exclusion regions BED

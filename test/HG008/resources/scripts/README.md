@@ -7,7 +7,7 @@ Helpers for materializing the chr20 / HG008 test fixtures consumed by the PRCGAP
 Before running any of the scripts below, make sure the following tools are on `PATH`:
 
 - `python3`
-- [samtools](https://github.com/samtools/samtools) (used by `download_data.sh` and `download_reference.sh` for `view` / `faidx`)
+- [samtools](https://github.com/samtools/samtools) (used by `download_data.sh` for `view` / `faidx`)
 - [bgzip and tabix](https://github.com/samtools/htslib) (used by `download_annotation.sh` and `extract_haplotypes.sh` for compression and indexing)
 
 A simple `which samtools bgzip tabix wget python3` should print a path for each before you start.
@@ -29,15 +29,8 @@ Notes:
 - Filter flag `-F 2308` drops unmapped, secondary, and supplementary alignments.
 - The full-assembly FASTAs are kept alongside the chr20 extracts because `samtools faidx` needs the index built against the full assembly.
 
-## download_reference.sh
-
-Downloads the CHM13 and GRCh38 reference assemblies into `../reference/`.
-
-| Path | Source |
-|---|---|
-| `../reference/chm13v2.0_maskedY_rCRS.fa{,.fai}` | T2T-CHM13 v2.0 (masked Y + rCRS), from the Human Pangenomics S3 bucket |
-| `../reference/GRCh38.d1.vd1.fa{,.fai}` | GRCh38.d1.vd1 from GDC (used as transanno `--query` for INDEL liftover) |
-
+The reference genomes come from `resource/scripts/download_reference.sh` at the
+repository root, which writes into `resource/reference/`.
 ## download_annotation.sh
 
 Downloads the annotation resources referenced by the PRCGAP annotation steps and prepares the chr20 / MANE subsets used in tests. All outputs land under `../annotation/`.

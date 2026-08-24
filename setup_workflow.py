@@ -435,7 +435,7 @@ def main():
         epilog="""
 Examples:
   # 1. Pre-stage images (once)
-  bash Dockerfile/pull_images.sh   # populates ./images/<tool>.sif
+  bash images/pull_images.sh   # populates ./images/<tool>.sif
 
   # 2. Local execution
   python setup_workflow.py \\
@@ -461,7 +461,7 @@ Examples:
                              "INDEL liftvcf_indel_chm13 rule as transanno --query)")
 
     # ---------- Singularity images ----------
-    # Defaults assume Dockerfile/pull_images.sh has populated ./images/.
+    # Defaults assume images/pull_images.sh has populated ./images/.
     # Pass an explicit --*-image to override.
     parser.add_argument("--images-dir", default=os.path.join(_SCRIPT_DIR, "images"),
                         help="directory containing prepared singularity images "
@@ -634,7 +634,7 @@ Examples:
         "In-workflow annotation generation",
         "Build the minimum annotation set inside PRCGAP instead of importing it "
         "from assembly_workflow. Each switch supersedes the corresponding path "
-        "flag above, which can then be omitted. Run download_reference.sh to "
+        "flag above, which can then be omitted. Run resource/scripts/download_reference.sh to "
         "fetch the reference inputs.",
     )
     # Satellite and chain generation are on by default, so a run given only the

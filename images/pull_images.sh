@@ -7,11 +7,10 @@
 # — no per-image override flags needed.
 #
 # Usage (run from this images/ directory):
-#   cd images
-#   bash pull_images.sh                       # pull missing images
-#   bash pull_images.sh --force               # re-pull everything (even if .sif exists)
-#   bash pull_images.sh clairs deepsomatic    # pull just these modules
-#   bash pull_images.sh --force clairs        # re-pull a single module
+#   bash images/pull_images.sh                       # pull missing images
+#   bash images/pull_images.sh --force               # re-pull everything (even if .sif exists)
+#   bash images/pull_images.sh clairs deepsomatic    # pull just these modules
+#   bash images/pull_images.sh --force clairs        # re-pull a single module
 #
 # Notes:
 # - Requires `singularity` (or `apptainer`) on PATH.
@@ -66,7 +65,9 @@ else
 fi
 
 # Images are written to the current directory; run this script from images/.
-OUT_DIR="."
+# Resolve from the script's own location so the images land beside it
+# whatever the working directory is.
+OUT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 
 pull_one() {
     local key="$1"

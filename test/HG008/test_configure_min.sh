@@ -49,12 +49,12 @@ python3 ../../setup_workflow.py \
     --mutation-caller "${MUTATION_CALLER}" \
     --run-dna-brnn --run-liftoff --run-chain-files \
     --run-line1 --run-simple-repeat \
-    --chm13-fasta            resources/reference/chm13v2.0_maskedY_rCRS.fa \
-    --grch38-fasta           resources/reference/GRCh38.d1.vd1.fa \
-    --grch38-gtf             resources/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf \
-    --grch38-centromeres     resources/reference/centromeres.txt.gz \
-    --grch38-exclusions      resources/reference/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed \
-    --chm13-censat           resources/reference/chm13v2.0_censat_v2.1.bed.gz \
+    --chm13-fasta            ../../resource/reference/chm13v2.0_maskedY_rCRS.fa \
+    --grch38-fasta           ../../resource/reference/GRCh38.d1.vd1.fa \
+    --grch38-gtf             ../../resource/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf \
+    --grch38-centromeres     ../../resource/reference/centromeres.txt.gz \
+    --grch38-exclusions      ../../resource/reference/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed \
+    --chm13-censat           ../../resource/reference/chm13v2.0_censat_v2.1.bed.gz \
     --copynumber-plot-sex-chrom false \
     --singularity-bind "${SING_BIND}" \
     --output-dir "./${PATTERN}" \

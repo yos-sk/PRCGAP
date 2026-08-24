@@ -321,5 +321,5 @@ for _enabled, _flag, _needed in _ANNOTATION_REQUIREMENTS:
         raise ValueError(
             _flag + " is enabled but these config keys are empty: "
             + ", ".join(_missing)
-            + ". Run download_reference.sh and pass the corresponding "
+            + ". Run resource/scripts/download_reference.sh and pass the corresponding "
               "setup_workflow.py flags.")
