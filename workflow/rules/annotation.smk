@@ -323,7 +323,9 @@ rule chain_files_merge:
 # same list in about four minutes. See workspace/repeat_bench/README.md,
 # Experiment 8, for the validation and the parameter choices.
 
-LINE1_RESOURCES = os.path.join(workflow.basedir, "resources", "line1")
+# resource/line1 at the repo root, built by resource/scripts/
+# build_line1_resources.sh; workflow.basedir is workflow/.
+LINE1_RESOURCES = os.path.join(workflow.basedir, os.pardir, "resource", "line1")
 
 
 rule line1_hap:

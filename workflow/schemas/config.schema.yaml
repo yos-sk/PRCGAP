@@ -525,7 +525,7 @@ properties:
       build the full-length young LINE-1 BED (L1HS / L1PA2-L1PA5) that
       nanomonsv insert_classify uses as its transduction source list
       (supersedes line1_bed). Needs no extra reference: the L1.3 query and the
-      Dfam subunit models ship in workflow/resources/line1. Default true.
+      Dfam subunit models are built into resource/line1 by resource/scripts/build_line1_resources.sh. Default true.
   run_simple_repeat:
     type: boolean
     description: |

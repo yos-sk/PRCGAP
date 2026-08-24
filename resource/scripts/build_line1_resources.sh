@@ -26,8 +26,11 @@ set -o nounset
 set -o pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUT_DIR="$(cd "${HERE}/.." && pwd)"
-REPO="$(cd "${HERE}/../../../.." && pwd)"
+# The script lives in resource/scripts/ and writes the models to resource/line1/.
+OUT_DIR="${HERE}/../line1"
+mkdir -p "${OUT_DIR}"
+OUT_DIR="$(cd "${OUT_DIR}" && pwd)"
+REPO="$(cd "${HERE}/../.." && pwd)"
 CONTAINER="${REPO}/images/nanomonsv.sif"
 RM_LIB=/opt/conda/share/RepeatMasker/Libraries/RepeatMasker.lib
 SKIP_FETCH=0

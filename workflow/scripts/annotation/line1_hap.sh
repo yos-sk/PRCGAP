@@ -17,7 +17,7 @@
 #   $4  OUTPUT_DIR   destination dir
 #   $5  THREADS      blastn -num_threads
 #   $6  SCRIPT_DIR   absolute path to workflow/scripts
-#   $7  RESOURCE_DIR absolute path to workflow/resources/line1
+#   $7  RESOURCE_DIR absolute path to resource/line1
 
 set -xv
 set -o errexit
@@ -44,7 +44,7 @@ for f in L1.3.fa l1_3end.fa l1_5end.fa; do
     if [ ! -s "${RESOURCE_DIR}/${f}" ]; then
         echo "[line1_hap] missing ${RESOURCE_DIR}/${f}." >&2
         echo "[line1_hap] build the LINE-1 set first:" >&2
-        echo "[line1_hap]   bash workflow/resources/line1/scripts/build_line1_resources.sh" >&2
+        echo "[line1_hap]   bash resource/scripts/build_line1_resources.sh" >&2
         exit 1
     fi
 done

@@ -12,7 +12,7 @@
 #   centromeres.txt.gz                              --grch38-centromeres (--run-chain-files)
 #   GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed  --grch38-exclusions (--run-chain-files)
 #
-# Also builds workflow/resources/line1/{L1.3,l1_3end,l1_5end}.fa, which
+# Also builds resource/line1/{L1.3,l1_3end,l1_5end}.fa, which
 # --run-line1 reads. Those are not references to fetch but they are the same kind
 # of one-time prerequisite, and they are not tracked, so a fresh clone has to
 # build them before the first run.
@@ -71,10 +71,10 @@ zgrep -v "#" "${OUTDIR}/Homo_sapiens.GRCh38.112.chr.gtf.gz" \
   > "${OUTDIR}/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf"
 
 # ---- LINE-1 subunit models for --run-line1 ----
-# Written into workflow/resources/line1/, not OUTDIR: line1_hap.sh reads them
+# Written into resource/line1/, not OUTDIR: line1_hap.sh reads them
 # from the repo, so there is nothing to pass to setup_workflow.py. Needs
 # images/nanomonsv.sif for the RepeatMasker library.
-LINE1_BUILD="$(dirname "$(readlink -f "$0")")/workflow/resources/line1/scripts/build_line1_resources.sh"
+LINE1_BUILD="$(dirname "$(readlink -f "$0")")/build_line1_resources.sh"
 if [ -x "${LINE1_BUILD}" ] || [ -f "${LINE1_BUILD}" ]; then
     bash "${LINE1_BUILD}"
 else
@@ -97,5 +97,5 @@ Pass them to setup_workflow.py, e.g.:
     --grch38-exclusions ${OUTDIR}/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed \\
     --run-dna-brnn --run-liftoff --run-chain-files --run-line1 --run-simple-repeat
 
-The LINE-1 models are in workflow/resources/line1/ and need no flag.
+The LINE-1 models are in resource/line1/ and need no flag.
 EOF

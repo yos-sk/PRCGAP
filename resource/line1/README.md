@@ -7,7 +7,7 @@ this README and the build script. `run_line1` defaults to true and `line1_hap.sh
 reads all three directly, so the step fails until they exist:
 
 ```bash
-bash workflow/resources/line1/scripts/build_line1_resources.sh
+bash resource/scripts/build_line1_resources.sh
 ```
 
 It needs `images/nanomonsv.sif` and nothing from the network. Run it once per
