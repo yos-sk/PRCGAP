@@ -72,6 +72,16 @@ _RESOURCE_DEFAULTS = [
     # Callers are scattered over contig chunks: these are per-chunk resources.
     # 8 threads / 32000 MB is the benchmarked setting
     # (plan/mutation_calling_performance.md 6.6).
+    #
+    # --num_shards is the rule's thread count, and each shard is a separate
+    # TensorFlow process. Measured on an unbound 192-core host, where every
+    # library sizes itself from the host core count: 8 shards reached >58.5 GB
+    # of address space against a 32 GB s_vmem grant and the process group was
+    # killed with SIGXCPU ~10 s in; 2 shards completed at 31.09 GB, i.e. 3 %
+    # under the same grant. RSS was never the problem -- 18 MB at kill time.
+    # 8 is kept here because profile/sge/cluster.yaml now core-binds every job,
+    # which makes nproc report the allocation rather than 192. Re-measure
+    # maxvmem before trusting this on a scheduler without such binding.
     ("clairs", 8, 32000),
     ("clairs_scatter_setup", 8, 16000),
     ("clairs_chunks", 1, 4000),
@@ -302,32 +312,13 @@ def _profile_partition(profile_dir: Path):
     return None
 
 
-def _is_slurm_profile(profile: str) -> bool:
-    """True when the profile path looks like a SLURM profile (name contains
-    'slurm'). Used to decide whether the runner needs #SBATCH headers."""
-    return bool(profile) and "slurm" in os.path.basename(os.path.normpath(profile)).lower()
-
-
-def _profile_partition(profile_dir: Path):
-    """Extract the partition from <profile>/settings.json SBATCH_DEFAULTS.
-
-    Returns the partition string (e.g. 'mjobs,rjobs') or None when it cannot be
-    determined (missing settings.json, absent/empty partition key). The runner
-    omits the '#SBATCH -p' line in that case, deferring to SLURM's default
-    partition.
-    """
-    settings = profile_dir / "settings.json"
-    if not settings.is_file():
-        return None
-    try:
-        defaults = json.loads(settings.read_text()).get("SBATCH_DEFAULTS", "")
-    except (json.JSONDecodeError, OSError):
-        return None
-    for tok in defaults.split():
-        if tok.startswith("partition="):
-            part = tok.split("=", 1)[1]
-            return part or None
-    return None
+def _is_sge_profile(profile: str) -> bool:
+    """True when the profile path looks like an SGE/UGE profile (name contains
+    'sge' or 'uge'). Used to decide whether the runner needs #$ headers."""
+    if not profile:
+        return False
+    name = os.path.basename(os.path.normpath(profile)).lower()
+    return "sge" in name or "uge" in name
 
 
 def write_runner(args, config_path: Path, runner_path: Path):
@@ -345,9 +336,9 @@ def write_runner(args, config_path: Path, runner_path: Path):
     output_dir = _abs(args.output_dir)
     config_abs = _abs(str(config_path))
 
-    # `set -euo pipefail` is emitted below the #SBATCH block, not here: sbatch
-    # stops scanning for #SBATCH at the first command, so any header after a
-    # command is silently ignored.
+    # `set -euo pipefail` is emitted below the header block, not here: both
+    # sbatch and qsub stop scanning for directives at the first command, so any
+    # header after a command is silently ignored.
     cmd_lines = ["#!/bin/bash", ""]
 
     # When the runner drives a SLURM profile, make the driver itself a batch job
@@ -355,10 +346,12 @@ def write_runner(args, config_path: Path, runner_path: Path):
     # read from the profile's settings.json so it stays defined in one place; if
     # it can't be determined, the -p line is omitted and SLURM's default
     # partition applies.
+    is_cluster_driver = False
     if _is_slurm_profile(args.profile):
+        is_cluster_driver = True
         cmd_lines += [
             "#SBATCH -c 1",
-            "#SBATCH --mem-per-cpu=8G",
+            f"#SBATCH --mem-per-cpu={args.driver_mem}G",
             "#SBATCH -J PRCGAP",
             # The driver only orchestrates, but it has to outlive the whole
             # workflow. Without --time it inherits the partition's DefaultTime
@@ -370,7 +363,52 @@ def write_runner(args, config_path: Path, runner_path: Path):
             cmd_lines.append(f"#SBATCH -p {partition}")
         cmd_lines.append("#SBATCH -o log/%x_%j.log -e log/%x_%j.log")
 
+    # Same idea for SGE/UGE. There is no walltime line to match the SLURM
+    # branch's --time: s_rt/h_rt are INFINITY on the queues this targets, and a
+    # guessed limit would kill the driver mid-workflow rather than protect it.
+    elif _is_sge_profile(args.profile):
+        is_cluster_driver = True
+        cmd_lines += [
+            # posix_compliant queues run the script with /bin/sh unless told
+            # otherwise, and the snakemake command below is bash.
+            "#$ -S /bin/bash",
+            "#$ -cwd",
+            "#$ -N PRCGAP",
+            "#$ -o log/ -e log/",
+            f"#$ -l s_vmem={args.driver_mem}G",
+        ]
+
+    if is_cluster_driver:
+        # Both header blocks send the driver's own stdout/stderr into log/, and
+        # the scheduler will not create it: qsub/sbatch fail the job instead.
+        (runner_path.parent / "log").mkdir(parents=True, exist_ok=True)
+
+    # Site-specific setup (module load, PATH for snakemake, ...). Emitted before
+    # `set -u` on purpose: the environment-modules init scripts reference unset
+    # variables and would abort the runner under it.
+    if args.runner_preamble:
+        cmd_lines.append("")
+        cmd_lines.append("# Site setup from setup_workflow.py --runner-preamble.")
+        cmd_lines += list(args.runner_preamble)
+        cmd_lines.append("")
+
     cmd_lines += ["set -euo pipefail", ""]
+
+    if _is_sge_profile(args.profile):
+        # The driver only orchestrates, but numpy/OpenBLAS (pulled in via
+        # pandas) sizes its thread-local buffers from the host's core count. On
+        # a 192-core exec host that overran the driver's s_vmem grant before
+        # snakemake had built the DAG ("OpenBLAS error: Memory allocation still
+        # failed after 10 retries"). SGE's s_vmem is a virtual-memory limit, so
+        # the reservation counts even though the driver's RSS stays tiny.
+        cmd_lines += [
+            "# One BLAS thread is plenty for a process that only submits jobs.",
+            "export OPENBLAS_NUM_THREADS=1",
+            "export OMP_NUM_THREADS=1",
+            "export MKL_NUM_THREADS=1",
+            "export NUMEXPR_NUM_THREADS=1",
+            "",
+        ]
 
     # Targets to build. When --targets is given, bake them in as defaults so the
     # runner builds only those (e.g. copynumber alone); targets passed on the
@@ -435,7 +473,7 @@ def main():
         epilog="""
 Examples:
   # 1. Pre-stage images (once)
-  bash images/pull_images.sh   # populates ./images/<tool>.sif
+  bash Dockerfile/pull_images.sh   # populates ./images/<tool>.sif
 
   # 2. Local execution
   python setup_workflow.py \\
@@ -461,7 +499,7 @@ Examples:
                              "INDEL liftvcf_indel_chm13 rule as transanno --query)")
 
     # ---------- Singularity images ----------
-    # Defaults assume images/pull_images.sh has populated ./images/.
+    # Defaults assume Dockerfile/pull_images.sh has populated ./images/.
     # Pass an explicit --*-image to override.
     parser.add_argument("--images-dir", default=os.path.join(_SCRIPT_DIR, "images"),
                         help="directory containing prepared singularity images "
@@ -577,6 +615,22 @@ Examples:
                              "SLURM profile is used (default 14-00:00:00). The "
                              "driver must outlive the whole workflow; without it "
                              "the partition's DefaultTime applies.")
+    parser.add_argument("--driver-mem", type=int, default=8,
+                        help="memory in GB for the snakemake driver job when a "
+                             "SLURM or SGE profile is used (default 8). Becomes "
+                             "'#SBATCH --mem-per-cpu' or '#$ -l s_vmem'. The "
+                             "driver only submits jobs, so this is about the "
+                             "python process, not the rules.")
+    parser.add_argument("--runner-preamble", action="append", default=[],
+                        metavar="LINE",
+                        help="shell line to emit in the runner before the "
+                             "snakemake call; repeatable. For site setup the "
+                             "generated script cannot know, e.g. "
+                             "--runner-preamble 'module load apptainer' "
+                             "--runner-preamble 'export PATH=~/miniconda3/envs/"
+                             "snakemake7/bin:$PATH'. Emitted above "
+                             "'set -euo pipefail' so module init scripts that "
+                             "read unset variables do not abort the runner.")
     parser.add_argument("--caller-solo-contig-min-bp", type=int, default=1000000,
                         help="contigs at least this long get their own caller "
                              "chunk/job; shorter ones are bundled into one "
@@ -634,7 +688,7 @@ Examples:
         "In-workflow annotation generation",
         "Build the minimum annotation set inside PRCGAP instead of importing it "
         "from assembly_workflow. Each switch supersedes the corresponding path "
-        "flag above, which can then be omitted. Run resource/scripts/download_reference.sh to "
+        "flag above, which can then be omitted. Run download_reference.sh to "
         "fetch the reference inputs.",
     )
     # Satellite and chain generation are on by default, so a run given only the

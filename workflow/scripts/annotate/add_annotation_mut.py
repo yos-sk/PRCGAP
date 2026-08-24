@@ -113,23 +113,31 @@ def annotation_gene(args) -> None:
             else:
                 record = "-\t-"
             
-            output = set()
-            for i, key in enumerate(annot_gene):
-                if key in cgc_gene_set:
-                    output.add(key)
-            if len(output) != 0:
-                record = record + "\t" + ",".join([k for k in output])
+            if cgc_gene_set is None:
+                # Optional database: not evaluated, not a negative.
+                record = record + "\t-"
             else:
-                record = record + "\tFalse" 
+                output = set()
+                for i, key in enumerate(annot_gene):
+                    if key in cgc_gene_set:
+                        output.add(key)
+                if len(output) != 0:
+                    record = record + "\t" + ",".join([k for k in output])
+                else:
+                    record = record + "\tFalse" 
 
-            output = set()
-            for i, key in enumerate(annot_gene):
-                if key in cmrg_gene_set:
-                    output.add(key)
-            if len(output) != 0:
-                record = record + "\t" + ",".join([k for k in output])
+            if cmrg_gene_set is None:
+                # Optional database: not evaluated, not a negative.
+                record = record + "\t-"
             else:
-                record = record + "\tFalse" 
+                output = set()
+                for i, key in enumerate(annot_gene):
+                    if key in cmrg_gene_set:
+                        output.add(key)
+                if len(output) != 0:
+                    record = record + "\t" + ",".join([k for k in output])
+                else:
+                    record = record + "\tFalse" 
 
             print('\t'.join(F.values()), record, sep="\t", file = hout)
         

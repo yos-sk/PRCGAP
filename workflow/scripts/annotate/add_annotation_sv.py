@@ -104,12 +104,20 @@ def annotation_gene(args) -> None:
             else:
                 record = record + "\t" + "-"
             
-            if bp1_gene in cgc_gene_set:
+            if cgc_gene_set is None:
+                # --cgc is optional; without it the column is not evaluated
+                # rather than a real negative, so mark it "-" like an absent gene.
+                record = record + "\t-"
+            elif bp1_gene in cgc_gene_set:
                 record = record + "\tTrue"
             else:
                 record = record + "\tFalse"
                 
-            if bp2_gene in cgc_gene_set:
+            if cgc_gene_set is None:
+                # --cgc is optional; without it the column is not evaluated
+                # rather than a real negative, so mark it "-" like an absent gene.
+                record = record + "\t-"
+            elif bp2_gene in cgc_gene_set:
                 record = record + "\tTrue"
             else:
                 record = record + "\tFalse"
