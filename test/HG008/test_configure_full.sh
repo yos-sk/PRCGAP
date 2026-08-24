@@ -23,7 +23,8 @@
 # dna-brnn / liftoff / chain-file generation inside the workflow:
 #   RUN_ANNOTATION=1 bash test_configure.sh
 # That variant additionally needs the GTF / centromeres / exclusions fetched by
-# ../../resource/scripts/download_reference.sh.
+# ../../resource/scripts/download_reference.sh, then cut to chr20 with
+# resources/scripts/extract_chr20_reference.sh.
 #
 # Prerequisites (produced by helpers under resources/scripts/):
 #   - bash resources/scripts/download_data.sh
@@ -37,9 +38,9 @@
 #       resources/annotation/gencode.v46.basic.annotation.chr20.mane.transcript.bed.gz
 #       resources/annotation/gnomad.v4.1.sv.sites.bed.gz{,.tbi}
 #       resources/annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz{,.tbi}
-#   - bash ../../resource/scripts/download_reference.sh   (writes ../../resource/reference/)
-#       ../../resource/reference/chm13v2.0_maskedY_rCRS.fa{,.fai}
-#       ../../resource/reference/GRCh38.d1.vd1.fa{,.fai}
+#   - bash ../../resource/scripts/download_reference.sh   (writes resources/reference/)
+#       resources/reference/chm13v2.0_maskedY_rCRS.fa{,.fai}
+#       resources/reference/GRCh38.d1.vd1.fa{,.fai}
 #
 # Manual prerequisites (no helper script):
 #   - resources/annotation/cancer_gene_census.tsv  (requires COSMIC login; download manually)
@@ -55,9 +56,9 @@ if [ "${RUN_ANNOTATION}" = "1" ]; then
     # below are still passed but ignored, since the generated files win.
     ANNOTATION_ARGS=(--run-dna-brnn --run-liftoff --run-chain-files
                      --run-line1 --run-simple-repeat
-                     --grch38-gtf         ../../resource/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf
-                     --grch38-centromeres ../../resource/reference/centromeres.txt.gz
-                     --grch38-exclusions  ../../resource/reference/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed)
+                     --grch38-gtf         resources/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf
+                     --grch38-centromeres resources/reference/centromeres.txt.gz
+                     --grch38-exclusions  resources/reference/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed)
 else
     ANNOTATION_ARGS=(--no-run-dna-brnn --no-run-liftoff --no-run-chain-files
                      --no-run-line1 --no-run-simple-repeat)
@@ -105,7 +106,7 @@ for PATTERN in hifi ont both; do
 
     python3 ../../setup_workflow.py \
         --samplesheet "config/samples_${PATTERN}.tsv" \
-        --chm13-fasta ../../resource/reference/chm13v2.0_maskedY_rCRS.fa \
+        --chm13-fasta resources/reference/chm13v2.0_maskedY_rCRS.fa \
         --sex female \
         --mutation-caller "${MUTATION_CALLER}" \
         "${ANNOTATION_ARGS[@]}" \
@@ -127,9 +128,9 @@ for PATTERN in hifi ont both; do
         --gencode-transcript-bed resources/annotation/gencode.v46.basic.annotation.chr20.mane.transcript.bed.gz \
         --gnomad-bed             resources/annotation/gnomad.v4.1.sv.sites.bed.gz \
         --gnomad-vcf             resources/annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz \
-        --grch38-fasta           ../../resource/reference/GRCh38.d1.vd1.fa \
+        --grch38-fasta           resources/reference/GRCh38.d1.vd1.fa \
         --copynumber-plot-sex-chrom false \
-        --chm13-censat           ../../resource/reference/chm13v2.0_censat_v2.1.bed.gz \
+        --chm13-censat           resources/reference/chm13v2.0_censat_v2.1.bed.gz \
         --pileup-no-baq true \
         --singularity-bind "${SING_BIND}" \
         --output-dir "./${PATTERN}" \
