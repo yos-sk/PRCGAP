@@ -1,16 +1,24 @@
 # LINE-1 reference set for the `run_line1` annotation step
 
-Everything here is public and small enough to ship, so enabling `run_line1`
-needs no download.
+## Build this first
+
+The three FASTAs are **not tracked** (`.gitignore`), so a fresh clone has only
+this README and the build script. `run_line1` defaults to true and `line1_hap.sh`
+reads all three directly, so the step fails until they exist:
+
+```bash
+bash workflow/resources/line1/scripts/build_line1_resources.sh
+```
+
+It needs `images/nanomonsv.sif` and nothing from the network. Run it once per
+clone; the output is deterministic, so re-running it is also how you verify an
+existing set.
 
 | file | contents | source |
 |---|---|---|
 | `L1.3.fa` | L1.3, the canonical retrotransposition-competent full-length L1HS (6,059 bp) | GenBank **L19088** |
 | `l1_3end.fa` | 67 `*_3end` LINE/L1 subunit models, human lineage | Dfam (CC0), via RepeatMasker's library in `images/nanomonsv.sif` |
 | `l1_5end.fa` | 61 `*_5end` LINE/L1 subunit models, human lineage | same |
-
-`scripts/build_line1_resources.sh` regenerates all three; run it and diff against
-what is committed. It reproduces them byte for byte.
 
 `L1.3.fa` is the detection query: it is 95.5-99% identical to L1PA2-L1PA5, so one
 query finds every young subfamily.

@@ -37,6 +37,18 @@ mkdir -p "${WORK_DIR}"
 
 PREFIX="${WORK_DIR}/${SAMPLE}.${HAP}"
 QUERY="${RESOURCE_DIR}/L1.3.fa"
+
+# The three FASTAs are not tracked, so say what to run instead of failing inside
+# blastn on a clone that has not built them yet.
+for f in L1.3.fa l1_3end.fa l1_5end.fa; do
+    if [ ! -s "${RESOURCE_DIR}/${f}" ]; then
+        echo "[line1_hap] missing ${RESOURCE_DIR}/${f}." >&2
+        echo "[line1_hap] build the LINE-1 set first:" >&2
+        echo "[line1_hap]   bash workflow/resources/line1/scripts/build_line1_resources.sh" >&2
+        exit 1
+    fi
+done
+
 QLEN=$(grep -v "^>" "${QUERY}" | tr -d "\n" | wc -c)
 
 # makeblastdb builds an LMDB-backed v5 database through mmap, which is not
