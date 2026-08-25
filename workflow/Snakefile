@@ -23,8 +23,81 @@ onstart:
     print("\n--- Analysis started ---\n")
 
 
+# Scratch a successful run no longer needs. Named as glob patterns relative to
+# the working directory, and only ever removed once every target is built, so a
+# failed or interrupted run keeps everything for inspection. `debug: true` in the
+# config (setup_workflow.py --debug) skips the whole step.
+#
+# On H2009 this is ~150 GB: the methylation workspace alone holds an 89 GB
+# filtered BAM, and reference.fa is written once per rule that needs it (5.7 GB
+# x 6). All of it is reproducible from the inputs that remain.
+_SCRATCH_DIRS = [
+    "*/*/workspace",          # copynumber, annotation/<sample>/<step>
+    "*/*/*/workspace",        # methylation, annotate_sv, annotate_{snv,indel}
+    "*/*/*/*/workspace",
+    "*_scatter/*",            # clairs / deepsomatic per-contig scatter
+    "bwa_index",
+    # A declared output, unlike everything above it, so removing it does make the
+    # next invocation rebuild it -- 20 s of staging against 2.9 GB kept.
+    "copynumber/reference",
+]
+
+# Side products of the nanomonsv postprocess script and the realign step. None of
+# them is a rule input or output -- checked against workflow/rules -- so removing
+# them leaves the DAG intact and the next run does not rebuild anything.
+#
+# nanomonsv.new_result.sv_typed.txt is deliberately NOT here. It looks equally
+# intermediate but it IS declared output and feeds insert_classify, connect and
+# merge, and regenerating it means running nanomonsv postprocess again. The test
+# is what a rebuild costs, not whether a path is declared: copynumber/reference
+# above is declared too and goes, because restaging it takes 20 s.
+_SCRATCH_FILES = [
+    "nanomonsv/*/*.nanomonsv.new_result.txt",
+    "nanomonsv/*/*.nanomonsv.result.filt.pass_low_vaf.txt",
+    "nanomonsv/*/*.nanomonsv.result.filt.pass_low_vaf.bed",
+    "nanomonsv/*/*.nanomonsv.result.seq.txt",
+    "*_post/*/*/realign/realign_ref.fasta*",   # bwa index of the candidate flanks
+]
+
+
+def _clean_scratch():
+    import glob
+    import shutil
+
+    def _du(path):
+        if os.path.isfile(path):
+            return 0 if os.path.islink(path) else os.path.getsize(path)
+        return sum(os.path.getsize(os.path.join(root, f))
+                   for root, _, files in os.walk(path)
+                   for f in files
+                   if not os.path.islink(os.path.join(root, f)))
+
+    removed, freed = [], 0
+    for pattern in _SCRATCH_DIRS:
+        for path in sorted(glob.glob(pattern)):
+            if os.path.isdir(path):
+                freed += _du(path)
+                shutil.rmtree(path, ignore_errors=True)
+                removed.append(path)
+    for pattern in _SCRATCH_FILES:
+        for path in sorted(glob.glob(pattern)):
+            if os.path.isfile(path):
+                freed += _du(path)
+                os.remove(path)
+                removed.append(path)
+
+    if removed:
+        print("Removed {} scratch path{} ({:.1f} GB):".format(
+            len(removed), "" if len(removed) == 1 else "s", freed / 1024 ** 3))
+        for path in removed:
+            print("  " + path)
+        print("Pass --debug to setup_workflow.py to keep them.")
+
+
 onsuccess:
     print("\n--- Workflow finished! ---\n")
+    if not config.get("debug", False):
+        _clean_scratch()
 
 
 onerror:

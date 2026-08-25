@@ -145,7 +145,7 @@ rule liftoff_hap:
     threads:
         get_threads("liftoff", 8)
     resources:
-        mem_mb=get_mem_mb("liftoff", 128000)
+        mem_mb=get_mem_mb("liftoff", 64000)
     log:
         "logs/annotation/{asmsrc}_liftoff_{hap}.log"
     benchmark:
@@ -213,19 +213,19 @@ rule prepare_mask_regions:
         grch38_centromeres=config.get("grch38_centromeres", "") or [],
         grch38_exclusions=config.get("grch38_exclusions", "") or [],
     output:
-        chm13_masked=MASKED_REF_DIR + "/chm13.masked.fa",
-        chm13_masked_fai=MASKED_REF_DIR + "/chm13.masked.fa.fai",
-        chm13_masked_noy=MASKED_REF_DIR + "/chm13.masked_noY.fa",
-        chm13_masked_noy_fai=MASKED_REF_DIR + "/chm13.masked_noY.fa.fai",
-        grch38_masked=MASKED_REF_DIR + "/GRCh38.masked.fa",
-        grch38_masked_fai=MASKED_REF_DIR + "/GRCh38.masked.fa.fai",
-        grch38_masked_noy=MASKED_REF_DIR + "/GRCh38.masked_noY.fa",
-        grch38_masked_noy_fai=MASKED_REF_DIR + "/GRCh38.masked_noY.fa.fai",
+        # Only the two _masked_reference() will ask for. Both variants used to be
+        # built and the sex picked one pair at use time, leaving the other pair
+        # -- 6 GB on a whole genome -- written and never read.
+        chm13_masked=_masked_reference("chm13"),
+        chm13_masked_fai=_masked_reference("chm13") + ".fai",
+        grch38_masked=_masked_reference("GRCh38"),
+        grch38_masked_fai=_masked_reference("GRCh38") + ".fai",
     message:
         "--- Masking satellite/centromere regions in CHM13 and GRCh38"
     params:
         output_dir=MASKED_REF_DIR,
         work_dir=MASKED_REF_DIR + "/workspace",
+        drop_chry="true" if config.get("sex", "female") == "female" else "false",
     threads:
         get_threads("prepare_mask_regions", 1)
     resources:
@@ -246,7 +246,8 @@ rule prepare_mask_regions:
             "{input.grch38_exclusions}" \
             "{params.output_dir}" \
             "{params.work_dir}" \
-            "{ANNOTATION_SCRIPTS}" &> {log}
+            "{ANNOTATION_SCRIPTS}" \
+            "{params.drop_chry}" &> {log}
         """
 
 

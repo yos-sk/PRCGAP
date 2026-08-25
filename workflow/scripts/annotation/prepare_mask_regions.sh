@@ -5,9 +5,10 @@
 # Runs inside the chain_files singularity container (bedtools + samtools +
 # python3).
 #
-# Emits, in OUTPUT_DIR:
-#   chm13.masked.fa  chm13.masked_noY.fa  GRCh38.masked.fa  GRCh38.masked_noY.fa
-#   (+ .fai for each)
+# Emits, in OUTPUT_DIR, the pair the sample's sex selects (+ .fai for each):
+#   DROP_CHRY=true   chm13.masked_noY.fa  GRCh38.masked_noY.fa
+#   DROP_CHRY=false  chm13.masked.fa      GRCh38.masked.fa
+# Only one pair is ever read, and on a whole genome the other is 6 GB.
 #
 # Required positional args:
 #   $1  CHM13_FASTA        CHM13v2.0 FASTA
@@ -18,6 +19,7 @@
 #   $6  OUTPUT_DIR         destination dir for the masked FASTAs
 #   $7  WORK_DIR           scratch dir for the mask BEDs
 #   $8  SCRIPT_DIR         absolute path to workflow/scripts/annotation
+#   $9  DROP_CHRY          true (female) | false (male)
 
 set -xv
 set -o errexit
@@ -32,6 +34,7 @@ GRCH38_EXCLUSIONS=$5
 OUTPUT_DIR=$6
 WORK_DIR=$7
 SCRIPT_DIR=$8
+DROP_CHRY=${9:-true}
 
 mkdir -p "${OUTPUT_DIR}" "${WORK_DIR}"
 
@@ -40,15 +43,22 @@ zcat -f "${CHM13_CENSAT}" \
     | grep -e hor -e mon -e hsat \
     | awk 'NR != 1 {print $1 "\t" $2 "\t" $3}' > "${WORK_DIR}/chm13_mask_regions.bed"
 
-bedtools maskfasta \
-    -fi "${CHM13_FASTA}" \
-    -fo "${OUTPUT_DIR}/chm13.masked.fa" \
-    -bed "${WORK_DIR}/chm13_mask_regions.bed"
-samtools faidx "${OUTPUT_DIR}/chm13.masked.fa"
-
-awk '/^>/ {p = ($0 !~ /^>chrY/)} p' "${OUTPUT_DIR}/chm13.masked.fa" \
-    > "${OUTPUT_DIR}/chm13.masked_noY.fa"
-samtools faidx "${OUTPUT_DIR}/chm13.masked_noY.fa"
+if [ "${DROP_CHRY}" = "true" ]; then
+    bedtools maskfasta \
+        -fi "${CHM13_FASTA}" \
+        -fo "${WORK_DIR}/chm13.masked.withY.fa" \
+        -bed "${WORK_DIR}/chm13_mask_regions.bed"
+    awk '/^>/ {p = ($0 !~ /^>chrY/)} p' "${WORK_DIR}/chm13.masked.withY.fa" \
+        > "${OUTPUT_DIR}/chm13.masked_noY.fa"
+    rm -f "${WORK_DIR}/chm13.masked.withY.fa"
+    samtools faidx "${OUTPUT_DIR}/chm13.masked_noY.fa"
+else
+    bedtools maskfasta \
+        -fi "${CHM13_FASTA}" \
+        -fo "${OUTPUT_DIR}/chm13.masked.fa" \
+        -bed "${WORK_DIR}/chm13_mask_regions.bed"
+    samtools faidx "${OUTPUT_DIR}/chm13.masked.fa"
+fi
 
 # ---- GRCh38: mask centromeres + GRC exclusion regions, drop non-chromosomes ----
 # centromeres.txt is a UCSC table dump: bin, chrom, chromStart, chromEnd, name.
@@ -59,14 +69,21 @@ cat "${GRCH38_EXCLUSIONS}" >> "${WORK_DIR}/GRCh38_mask_regions.bed"
 python3 "${SCRIPT_DIR}/remove_unlocalized_GRCh38.py" "${GRCH38_FASTA}" \
     > "${WORK_DIR}/GRCh38_removed_unlocalized.fa"
 
-bedtools maskfasta \
-    -fi "${WORK_DIR}/GRCh38_removed_unlocalized.fa" \
-    -fo "${OUTPUT_DIR}/GRCh38.masked.fa" \
-    -bed "${WORK_DIR}/GRCh38_mask_regions.bed"
-samtools faidx "${OUTPUT_DIR}/GRCh38.masked.fa"
-
-awk '/^>/ {p = ($0 !~ /^>chrY/)} p' "${OUTPUT_DIR}/GRCh38.masked.fa" \
-    > "${OUTPUT_DIR}/GRCh38.masked_noY.fa"
-samtools faidx "${OUTPUT_DIR}/GRCh38.masked_noY.fa"
+if [ "${DROP_CHRY}" = "true" ]; then
+    bedtools maskfasta \
+        -fi "${WORK_DIR}/GRCh38_removed_unlocalized.fa" \
+        -fo "${WORK_DIR}/GRCh38.masked.withY.fa" \
+        -bed "${WORK_DIR}/GRCh38_mask_regions.bed"
+    awk '/^>/ {p = ($0 !~ /^>chrY/)} p' "${WORK_DIR}/GRCh38.masked.withY.fa" \
+        > "${OUTPUT_DIR}/GRCh38.masked_noY.fa"
+    rm -f "${WORK_DIR}/GRCh38.masked.withY.fa"
+    samtools faidx "${OUTPUT_DIR}/GRCh38.masked_noY.fa"
+else
+    bedtools maskfasta \
+        -fi "${WORK_DIR}/GRCh38_removed_unlocalized.fa" \
+        -fo "${OUTPUT_DIR}/GRCh38.masked.fa" \
+        -bed "${WORK_DIR}/GRCh38_mask_regions.bed"
+    samtools faidx "${OUTPUT_DIR}/GRCh38.masked.fa"
+fi
 
 echo "[prepare_mask_regions] done"

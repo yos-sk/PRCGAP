@@ -217,7 +217,7 @@ _RESOURCE_DEFAULTS = [
     # supersedes it there (69 min per haplotype).
     ("dna_brnn", 8, 8000),   # measured 4.4 GB / 69 min per haplotype
     ("liftoff_reference", 1, 8000),
-    ("liftoff", 8, 96000),
+    ("liftoff", 8, 64000),   # measured 36.4 GB rss / 40.4 GB pss (H2009 whole genome)
     ("liftoff_merge", 1, 16000),
     ("prepare_mask_regions", 1, 10240),
     ("make_chain_files", 8, 48000),             # same minimap2 asm5 shape as copynumber_ref_table, 34.6 GB there
@@ -423,6 +423,7 @@ def create_config(args):
         "chm13_censat": _abs(args.chm13_censat) or "",
         # ---- pileup (mutation postprocess) params ----
         "pileup_no_baq": args.pileup_no_baq,
+        "debug": args.debug,
         "pileup_max_depth": args.pileup_max_depth,
         "pileup_num_chunks": args.pileup_num_chunks,
         # ---- optional nanomonsv steps (not used in the paper) ----
@@ -982,6 +983,12 @@ Examples:
                              "precedence over the baked-in ones.")
     parser.add_argument("--force", "-f", action="store_true", default=False,
                         help="Overwrite existing output files")
+    parser.add_argument("--debug", action="store_true", default=False,
+                        help="keep the scratch directories a successful run "
+                             "would otherwise delete (every workspace/, the "
+                             "caller scatter dirs, bwa_index/ and the per-rule "
+                             "copies of reference.fa). On H2009 those come to "
+                             "roughly 150 GB, so they go by default.")
 
     # ---------- Executor / container backend ----------
     parser.add_argument("--profile", default=None,
