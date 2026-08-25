@@ -30,21 +30,17 @@ fi
 
 mkdir -p "./${PATTERN}"
 
-python3 ../../set_sample_sheet.py \
-    --tumor  HG008T \
-    --normal HG008N \
-    --tumor-hifi  ../resources/reads/hifi/HG008T.chr20.hifi.bam \
-    --normal-hifi ../resources/reads/hifi/HG008N.chr20.hifi.bam \
-    --assembly-hap1 ../resources/asm/HG008N.hap1.chr20.fa \
-    --assembly-hap2 ../resources/asm/HG008N.hap2.chr20.fa \
-    --no-absolutize --no-check-exists \
-    --output "config/samples_${PATTERN}.tsv" \
-    --force
-
 # References only. No --hap1-satellite / --gtf-file / --line1-bed /
 # --simple-repeat / --chain-to-* : the run_* switches generate all of those.
+# The pair options write --samplesheet rather than reading it.
 python3 ../../setup_workflow.py \
     --samplesheet "config/samples_${PATTERN}.tsv" \
+    --tumor  HG008T \
+    --normal HG008N \
+    --tumor-hifi  resources/reads/hifi/HG008T.chr20.hifi.bam \
+    --normal-hifi resources/reads/hifi/HG008N.chr20.hifi.bam \
+    --assembly-hap1 resources/asm/HG008N.hap1.chr20.fa \
+    --assembly-hap2 resources/asm/HG008N.hap2.chr20.fa \
     --sex female \
     --mutation-caller "${MUTATION_CALLER}" \
     --run-dna-brnn --run-liftoff --run-chain-files \

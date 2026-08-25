@@ -79,34 +79,30 @@ fi
 # they are one level deeper than this script.
 for PATTERN in hifi ont both; do
     case ${PATTERN} in
-        hifi) SEQ_ARGS=(--tumor-hifi ../resources/reads/hifi/HG008T.chr20.hifi.bam
-                        --normal-hifi ../resources/reads/hifi/HG008N.chr20.hifi.bam) ;;
-        ont)  SEQ_ARGS=(--tumor-ont  ../resources/reads/ont/HG008T.chr20.ont.bam
-                        --normal-ont  ../resources/reads/ont/HG008N.chr20.ont.bam) ;;
-        both) SEQ_ARGS=(--tumor-hifi ../resources/reads/hifi/HG008T.chr20.hifi.bam
-                        --normal-hifi ../resources/reads/hifi/HG008N.chr20.hifi.bam
-                        --tumor-ont  ../resources/reads/ont/HG008T.chr20.ont.bam
-                        --normal-ont  ../resources/reads/ont/HG008N.chr20.ont.bam) ;;
+        hifi) SEQ_ARGS=(--tumor-hifi resources/reads/hifi/HG008T.chr20.hifi.bam
+                        --normal-hifi resources/reads/hifi/HG008N.chr20.hifi.bam) ;;
+        ont)  SEQ_ARGS=(--tumor-ont  resources/reads/ont/HG008T.chr20.ont.bam
+                        --normal-ont  resources/reads/ont/HG008N.chr20.ont.bam) ;;
+        both) SEQ_ARGS=(--tumor-hifi resources/reads/hifi/HG008T.chr20.hifi.bam
+                        --normal-hifi resources/reads/hifi/HG008N.chr20.hifi.bam
+                        --tumor-ont  resources/reads/ont/HG008T.chr20.ont.bam
+                        --normal-ont  resources/reads/ont/HG008N.chr20.ont.bam) ;;
     esac
 
     echo "--- configuring HG008 pattern: ${PATTERN}"
     mkdir -p "./${PATTERN}"
 
-    # --no-check-exists: configure does not require the multi-GB read/asm files
-    # to be staged yet. --no-absolutize: keep the resource paths relative.
-    python3 ../../set_sample_sheet.py \
+    # The pair options write --samplesheet rather than reading it. Paths are
+    # relative to this directory and get absolutised, so the existence check runs
+    # and a missing input fails here instead of hours into the run.
+    python3 ../../setup_workflow.py \
+        --samplesheet "config/samples_${PATTERN}.tsv" \
         --tumor  HG008T \
         --normal HG008N \
         "${SEQ_ARGS[@]}" \
-        --assembly-hap1 ../resources/asm/HG008N.hap1.chr20.fa \
-        --assembly-hap2 ../resources/asm/HG008N.hap2.chr20.fa \
-        --no-absolutize --no-check-exists \
-        --output "config/samples_${PATTERN}.tsv" \
-        --force
-
-    python3 ../../setup_workflow.py \
-        --samplesheet "config/samples_${PATTERN}.tsv" \
-        --chm13-fasta resources/reference/chm13v2.0_maskedY_rCRS.fa \
+        --assembly-hap1 resources/asm/HG008N.hap1.chr20.fa \
+        --assembly-hap2 resources/asm/HG008N.hap2.chr20.fa \
+            --chm13-fasta resources/reference/chm13v2.0_maskedY_rCRS.fa \
         --sex female \
         --mutation-caller "${MUTATION_CALLER}" \
         "${ANNOTATION_ARGS[@]}" \
