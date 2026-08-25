@@ -142,12 +142,12 @@ def get_all_targets():
         if config.get("run_nanomonsv_merge", False) and len(seqtypes) >= 2:
             targets.append("nanomonsv/{}.nanomonsv.result.merged.txt".format(tumor))
 
-        # SV annotation + reclassification (per available seqtype)
+        # SV annotation + reclassification (per available seqtype). Requesting
+        # the reclassified table is enough -- it is built from annotated.txt, so
+        # naming both only restates the dependency.
         for seqtype in seqtypes:
             targets.append(
-                "annotate_sv/{}/{}/{}.PRCGAP.nanomonsv_results.annotated.txt".format(tumor, seqtype, tumor))
-            targets.append(
-                "annotate_sv/{}/{}.{}.PRCGAP.nanomonsv_results.reclassified.txt".format(tumor, tumor, seqtype))
+                "annotate_sv/{}/{}/{}.PRCGAP.nanomonsv_results.reclassified.txt".format(tumor, seqtype, tumor))
 
         # point-mutation postprocess leaves + annotation
         # (per caller × per available seqtype; annotation additionally per mode)

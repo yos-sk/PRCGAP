@@ -218,6 +218,11 @@ chm13_censat: ""                 # CHM13 cenSat v2.1 BED(.gz): fill assembly gap
 # chm13_fasta via chromosome_length.py (no separate file needed).
 # ---- point-mutation caller ----
 mutation_caller: deepsomatic     # deepsomatic (default) | clairs | both
+
+# ---- scratch ----
+debug: false                     # true keeps every workspace/, the caller scatter
+                                 #   dirs, bwa_index/ and the nanomonsv/realign side
+                                 #   products a successful run otherwise deletes
 # Callers are scattered over contigs; contigs are never split. A contig at least
 # this long gets a job of its own; all shorter ones share one job. 0 = strictly
 # one job per contig.

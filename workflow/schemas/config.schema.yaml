@@ -382,6 +382,13 @@ properties:
       previous behaviour of running ClairS and DeepSomatic together.
     enum: ["deepsomatic", "clairs", "both"]
 
+  debug:
+    type: boolean
+    description: |
+      keep the scratch a successful run would otherwise delete (every
+      workspace/, the caller scatter dirs, bwa_index/, the staged copy-number
+      reference, and the nanomonsv/realign side products). Default false.
+
   caller_solo_contig_min_bp:
     type: integer
     minimum: 0

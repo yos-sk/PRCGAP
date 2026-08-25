@@ -317,7 +317,10 @@ rule reclassify_sv:
         # the same output dir (see params.copynumber_dir).
         copynumber_png=lambda wc: "copynumber/{}/output/{}.copynumber.png".format(wc.tumor, wc.tumor),
     output:
-        "annotate_sv/{tumor}/{tumor}.{seqtype}.PRCGAP.nanomonsv_results.reclassified.txt",
+        # Beside its own input, under {seqtype}/, rather than one level up with
+        # the seqtype in the file name -- it is the same product of the same
+        # (tumor, seqtype) as annotated.txt.
+        "annotate_sv/{tumor}/{seqtype}/{tumor}.PRCGAP.nanomonsv_results.reclassified.txt",
     message:
         "--- Reclassifying SV types for {wildcards.tumor} ({wildcards.seqtype})"
     params:
