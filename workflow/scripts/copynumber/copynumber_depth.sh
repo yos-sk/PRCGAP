@@ -49,9 +49,9 @@ python3 "${SCRIPT_DIR}"/copynumber/make_windows.py "${REF_TABLE}" > "${WINDOWS}"
 for entry in "${TUMOR}:${TUMOR_BAM}" "${NORMAL}:${NORMAL_BAM}"; do
     SAMPLE=${entry%%:*}
     BAM=${entry#*:}
-    # Threads only decompress the BAM and keep returning less: measured on
-    # H2009 hap1, 12:09 / 6:45 / 4:51 / 3:50 at 1 / 2 / 4 / 8. Peak RSS is flat
-    # at 4.3 GB throughout -- it tracks the longest contig, not the thread count.
+    # Threads only decompress the BAM, so they keep returning less as they go
+    # up. Peak memory is flat in the thread count -- it tracks the longest
+    # contig instead.
     mosdepth -t "${THREADS}" -Q 40 --by "${WINDOWS}" --no-per-base \
         "${WORK_DIR}/${SAMPLE}.${HAP}" "${BAM}"
 done

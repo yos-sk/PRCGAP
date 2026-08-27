@@ -26,8 +26,8 @@ DEFAULT_PLOIDY <- 1
 DEFAULT_BINWIDTH <- 0.05
 UNDO_SD_THRESHOLD <- 1.5
 # segment() defaults to p.method = "hybrid", whose permutation test draws from
-# the RNG, so an unseeded run does not reproduce: the same input segmented twice
-# differed at a median of 16 breakpoints on H2009 hap1.
+# the RNG, so an unseeded run does not reproduce -- the same input segmented
+# twice returns different breakpoints.
 DEFAULT_SEED <- 42
 # half_win auto-ploidy (see estimate_ploidy_halfwin): a segment cluster at
 # [0.4,0.6]*baseline carrying > HALFWIN_CUTOFF of the genome length marks a

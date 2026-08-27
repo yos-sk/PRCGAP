@@ -6,13 +6,12 @@ Post-process reference tables for male samples.
 Consolidate chrX to one haplotype and chrY to the other.
 
 Overlapping sex-chromosome records are resolved by real alignment support
-inside the disputed interval, measured on the rmsec PAFs (--paf), not by
-envelope size: on BL209 the Yq contig's chain, stretched by satellite
-matches, claims chrY 7.2-62.5 Mb but holds 0.04 Mb of alignment on
-7.2-18.5 Mb where the true Yp contig holds 11.1 Mb -- keeping the larger
-span there deletes the real contig. The loser is dropped only when it lies
-inside the winner; otherwise it is clipped back to its own supported extent.
-Without --paf the old larger-span rule is used.
+inside the disputed interval, read from the rmsec PAFs (--paf), not by
+envelope size: a chain stretched by satellite matches can claim most of chrY
+while holding almost no alignment over the stretch it disputes with the true
+contig, so preferring the larger span there deletes the real contig. The
+loser is dropped only when it lies inside the winner; otherwise it is clipped
+back to its own supported extent. Without --paf the larger-span rule is used.
 """
 
 import sys
@@ -144,9 +143,9 @@ def _resolve_loser(loser, lo, hi, idx):
     the winner -> both flanks (2). Two flanks whose CONTIG ranges mostly
     overlap are the same contig segment multi-mapped to two reference
     locations (a satellite contig end), which breaks contig linearity --
-    on BL209 haplotype1-0000024's end 24.0-24.7 Mb backed both a 110 kb
-    claim at chrY 18.73-18.84 Mb and the real Yq row; only the placement
-    with more aligned bases survives. Returns the surviving pieces."""
+    such an end can back both a small spurious claim and the real row, so
+    only the placement with more aligned bases survives.
+    Returns the surviving pieces."""
     l_rs, l_re = int(loser[5]), int(loser[6])
     pieces = []
     if l_rs < lo:

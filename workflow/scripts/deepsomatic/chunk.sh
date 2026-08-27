@@ -22,9 +22,8 @@ OUTPUT_DIR=$7
 THREAD=${8:-8}
 MODEL_TYPE=${9:-PACBIO}
 # postprocess_variants' own worker count. Its default is the node's online core
-# count and it ignores both --num_shards and the SLURM allocation, so on a
-# 192-core host it forks ~192 workers onto our allocated cores. See
-# plan/mutation_calling_performance.md 6.6.
+# count and it ignores both --num_shards and the scheduler allocation, so on a
+# many-core host it forks one worker per host core onto our allocated cores.
 POSTPROCESS_CPUS=${10:-1}
 
 mkdir -p ${OUTPUT_DIR}

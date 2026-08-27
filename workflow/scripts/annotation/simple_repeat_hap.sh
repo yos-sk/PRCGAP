@@ -36,7 +36,7 @@ TSV="${WORK_DIR}/${SAMPLE}.${HAP}.ultra_p10.tsv"
 BED="${OUTPUT_DIR}/${SAMPLE}.${HAP}.simple_repeats.bed"
 
 # --read_all: annotate every contig, not a sample of them.
-# -i 3 -d 3: insertion/deletion penalties as used in the benchmark.
+# -i 3 -d 3: insertion/deletion penalties.
 # --tsv -c: the TSV carries Score and #copies, which the BED does not.
 ultra --read_all -p 10 -t "${THREADS}" -i 3 -d 3 --tsv -c \
     -o "${TSV}" "${FASTA}"

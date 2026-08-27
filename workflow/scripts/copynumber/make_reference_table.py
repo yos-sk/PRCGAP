@@ -27,8 +27,6 @@ Stages:
   8   drop a row whose reference interval is contained in another row's;
       a PARTIAL overlap goes to the contig with more real alignment inside
       it, and the loser is clipped back to its own supported extent
-
-Derivation, thresholds and validation: workspace/reference_table/README.md.
 """
 
 import sys
@@ -142,13 +140,13 @@ def density(chain):
 
 
 def ref_density(chain):
-    """density() measured on the chm13 side. A pericentromeric fragment can pass
-    the contig-side cutoff while its chain reaches across tens of Mb of
-    reference, because the contig span it divides by is tiny: H2009 hap2
-    haplotype2-0000265 is 0.198 on the contig and 0.0017 here, 0.21 Mb of contig
-    claiming 24.6 Mb of chr9. Two such rows overlap every other chr9 row, and
-    copynumber_window.py's `diff += (c_start - prev_end) / W` then goes negative
-    and walks the window axis backwards."""
+    """density() taken on the chm13 side. A pericentromeric fragment can pass the
+    contig-side cutoff while its chain reaches across tens of Mb of reference,
+    because the contig span it divides by is tiny -- a fraction of a Mb of contig
+    claiming most of a chromosome arm. Such a row overlaps every other row on
+    that chromosome, and copynumber_window.py's
+    `diff += (c_start - prev_end) / W` then goes negative and walks the window
+    axis backwards."""
     return _density(chain["matched"], chain["tend"] - chain["tstart"], chain["tmember"])
 
 
@@ -234,11 +232,11 @@ def resolve_cross_contig_overlaps(chains, seed_mapq, seed_alnlen, min_density, w
                 # real chimera puts its arms on DIFFERENT parts of the contig
                 # and does not overlap at all.
                 #
-                # Density, not matched bases, says which is wrong. The homology
+                # Density, not matched bases, says which is wrong: the homology
                 # chain is sparse over the stretch it claims while the real one
-                # is solid: H2009 hap1 0000018 is chr14 0.923 vs chr22 0.214,
-                # and the BL209 hap1 chr6/chr13 chimera is 0.957 vs 0.980. On
-                # matched bases those two are 32x and 6.9x, far closer together.
+                # is solid. Matched bases separate the two far less, and both
+                # arms of a real chimera are dense, so a density ratio leaves
+                # them alone where a matched-base ratio would drop one.
                 if win_ratio > 0:
                     da, db = density(a), density(b)
                     if db > 0 and da >= win_ratio * db:
@@ -479,10 +477,10 @@ def extend_to_telomeres(rows, contig_len, chrom_len, telo, max_gap_frac=0.5):
     magnitude. A row must also be the one that actually reaches that contig end,
     so a chimera's second arm cannot extend across the first, and the gap it
     would bridge must stay under max_gap_frac of its own contig span -- being the
-    outermost row is not the same as being near the end. BL209 hap1
-    haplotype1-0000027 is a 2.48 Mb satellite contig whose only row is 62 kb, and
-    without that test it swallowed 1.38 Mb. Legitimate extensions are all under
-    7% (the acrocentric short arms of H2009 hap2 are the largest at 3.7-6.5%).
+    outermost row is not the same as being near the end: without that test a
+    satellite contig whose only row covers a few percent of it extends over the
+    whole contig. Legitimate extensions bridge a small fraction of the contig
+    span, which is what max_gap_frac bounds.
     Returns (rows, applied, skipped)."""
     by_contig = defaultdict(list)
     for r in rows:
@@ -561,8 +559,8 @@ def clip_row_refside(row, keep_lo, keep_hi, idx):
     """Clip a row's reference claim to [keep_lo, keep_hi). The clipped side is
     recomputed from the row's own supporting records, so an envelope stretched
     across satellite does not survive as an empty claim reaching exactly to
-    the cut (BL209 haplotype1-0000024's first support past chrY 25.8 Mb is at
-    30.75 Mb, not 25.8). The untouched side keeps the original coordinates,
+    the cut -- the first supporting record beyond it can sit several Mb further
+    out than the cut itself. The untouched side keeps the original coordinates,
     which stage 9 may have snapped to a terminus. Returns a new row or None
     when nothing supported remains."""
     contig, cs, ce, strand, chrom, rs, re = row[0], row[1], row[2], row[3], row[4], row[5], row[6]
@@ -621,9 +619,9 @@ def resolve_overlaps_between_contigs(rows, support_idx):
     postprocess_sex_chrom.py). A PARTIAL overlap goes to the contig with more
     real alignment inside it (row_support), NOT to the wider envelope, and
     costs the loser only the disputed interval (dropping outright would cost
-    a genuinely chimeric arm its row: on BL209 hap1 the contig carrying chr13
-    72.4-85.4 Mb overlaps the neighbouring chr13 contig by 1.6 Mb, 12% of
-    itself, and is not a duplicate of it). The loser's new boundary is
+    a genuinely chimeric arm its row -- two adjacent contigs on the same
+    chromosome can overlap by a tenth of their length without either being a
+    duplicate of the other). The loser's new boundary is
     recomputed from its own supporting records so no empty envelope survives
     up to the cut. Ties fall back to span, then contig name, so the choice
     does not depend on input order. Returns (kept, dropped, log)."""

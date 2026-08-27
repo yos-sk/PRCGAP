@@ -2,9 +2,9 @@
 # Contig ↔ CHM13 correspondence table for one haplotype: align the reference to
 # the assembly and reduce the primary alignments to a table.
 #
-# The assembly is not masked. Masking with the dna-brnn satellite BED changed no
-# chromosome or strand assignment and removed 32.8 Mb of span, all acrocentric
-# (workspace/reference_table/README.md §2).
+# The assembly is not masked: masking with the dna-brnn satellite BED leaves the
+# chromosome and strand assignments unchanged and only shortens the acrocentric
+# spans, so it costs coverage without buying accuracy.
 #
 # Required positional args:
 #   $1  HAP        hap1 | hap2 (labels the scratch files only)

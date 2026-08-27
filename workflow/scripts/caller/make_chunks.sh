@@ -7,8 +7,7 @@
 # strictly one chunk per contig.
 #
 # The critical path of the scattered run is the largest single contig, so
-# packing beyond "one big contig per chunk" cannot shorten it (see
-# plan/mutation_calling_performance.md 6.6).
+# packing beyond "one big contig per chunk" cannot shorten it.
 #
 # Per chunk NNN emits:
 #   NNN.bed   BED covering the whole contig(s)   -> DeepSomatic --regions

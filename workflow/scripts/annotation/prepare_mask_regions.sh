@@ -8,7 +8,8 @@
 # Emits, in OUTPUT_DIR, the pair the sample's sex selects (+ .fai for each):
 #   DROP_CHRY=true   chm13.masked_noY.fa  GRCh38.masked_noY.fa
 #   DROP_CHRY=false  chm13.masked.fa      GRCh38.masked.fa
-# Only one pair is ever read, and on a whole genome the other is 6 GB.
+# Only one pair is ever read; building both leaves a full extra copy of each
+# reference on disk.
 #
 # Required positional args:
 #   $1  CHM13_FASTA        CHM13v2.0 FASTA

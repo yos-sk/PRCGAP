@@ -4,7 +4,8 @@
 #
 # Phase A change (2026-07):
 #   * --no-BAQ defaults to true (BAQ is the dominant memory consumer for
-#     long-read / high-depth pileup; disabling it cuts peak RSS ~26x and keeps
+#     long-read / high-depth pileup; disabling it cuts peak RSS by more than an
+#     order of magnitude and keeps
 #     the read-base column format identical, ref-relative `.,`).
 #   * each chunk is restricted to its contig(s) with `samtools mpileup -r`
 #     (index seek + early termination) instead of scanning the whole BAM per

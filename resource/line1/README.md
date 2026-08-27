@@ -39,6 +39,3 @@ The RepeatMasker library covers every species, so the build script keeps only
 the clades on the path from the root to *Homo sapiens* and drops the 51
 rodent-specific L1 subunit models. Note the library spells one of those clades
 `Theria_mammals`, not `Theria`.
-
-Validation and the parameter choices behind this step are in
-`workspace/repeat_bench/README.md`, Experiment 8.
