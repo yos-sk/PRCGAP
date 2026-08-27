@@ -83,7 +83,7 @@ rule gff_to_bed:
     threads:
         get_threads("gff_to_bed", 1)
     resources:
-        mem_mb=get_mem_mb("gff_to_bed", 4000)
+        mem_mb=get_mem_mb("gff_to_bed", 8000)
     log:
         "logs/annotate_common/{asmsrc}_gff_to_bed.log"
     benchmark:

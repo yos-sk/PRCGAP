@@ -127,7 +127,7 @@ rule mut_vcf_index:
     threads:
         get_threads("mut_vcf_index", 1)
     resources:
-        mem_mb=get_mem_mb("mut_vcf_index", 4000)
+        mem_mb=get_mem_mb("mut_vcf_index", 8000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_vcf_index.log"
     benchmark:
@@ -310,7 +310,7 @@ rule indel_hap_reference:
     threads:
         get_threads("indel_hap_reference", 1)
     resources:
-        mem_mb=get_mem_mb("indel_hap_reference", 4000)
+        mem_mb=get_mem_mb("indel_hap_reference", 8000)
     log:
         "logs/annotate_mut/{tumor}_{tool}_{seqtype}_indel_hap_reference.log"
     benchmark:

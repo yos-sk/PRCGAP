@@ -71,7 +71,7 @@ rule copynumber_reference:
     threads:
         get_threads("copynumber_reference", 1)
     resources:
-        mem_mb=get_mem_mb("copynumber_reference", 4000)
+        mem_mb=get_mem_mb("copynumber_reference", 8000)
     log:
         "logs/copynumber/reference.log"
     benchmark:
@@ -193,7 +193,7 @@ rule copynumber_depth:
     threads:
         get_threads("copynumber_depth", get_threads("copynumber", 8))
     resources:
-        mem_mb=get_mem_mb("copynumber_depth", get_mem_mb("copynumber", 32000))
+        mem_mb=get_mem_mb("copynumber_depth", get_mem_mb("copynumber", 16000))
     log:
         "logs/copynumber/{tumor}_depth_{hap}.log"
     benchmark:
@@ -239,7 +239,7 @@ rule copynumber_segment:
     threads:
         get_threads("copynumber_segment", 1)
     resources:
-        mem_mb=get_mem_mb("copynumber_segment", get_mem_mb("copynumber", 32000))
+        mem_mb=get_mem_mb("copynumber_segment", get_mem_mb("copynumber", 8000))
     log:
         "logs/copynumber/{tumor}_segment_{hap}.log"
     benchmark:
@@ -296,7 +296,7 @@ rule copynumber_plot:
     threads:
         get_threads("copynumber_plot", 1)
     resources:
-        mem_mb=get_mem_mb("copynumber_plot", get_mem_mb("copynumber", 4000))
+        mem_mb=get_mem_mb("copynumber_plot", get_mem_mb("copynumber", 8000))
     log:
         "logs/copynumber/{tumor}_plot.log"
     benchmark:

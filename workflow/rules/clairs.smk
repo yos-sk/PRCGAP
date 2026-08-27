@@ -71,7 +71,7 @@ checkpoint clairs_chunks:
     threads:
         get_threads("clairs_chunks", 1)
     resources:
-        mem_mb=get_mem_mb("clairs_chunks", 4000)
+        mem_mb=get_mem_mb("clairs_chunks", 8000)
     log:
         "logs/clairs/{tumor}_{seqtype}_chunks.log"
     benchmark:
@@ -200,9 +200,9 @@ rule clairs_postprocess_prepare:
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:
-        get_threads("clairs_postprocess", 4)
+        get_threads("clairs_postprocess", 1)
     resources:
-        mem_mb=get_mem_mb("clairs_postprocess", 16000)
+        mem_mb=get_mem_mb("clairs_postprocess", 32000)
     log:
         "logs/clairs_postprocess/{tumor}_{seqtype}_prepare.log"
     benchmark:
@@ -236,9 +236,9 @@ rule clairs_postprocess_parse_vcf:
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:
-        get_threads("clairs_postprocess", 4)
+        get_threads("clairs_postprocess", 1)
     resources:
-        mem_mb=get_mem_mb("clairs_postprocess", 16000)
+        mem_mb=get_mem_mb("clairs_postprocess", 32000)
     log:
         "logs/clairs_postprocess/{tumor}_{seqtype}_parse_vcf.log"
     benchmark:
@@ -305,7 +305,7 @@ rule clairs_postprocess_split_bed:
     threads:
         get_threads("clairs_postprocess_split", 1)
     resources:
-        mem_mb=get_mem_mb("clairs_postprocess_split", 4000)
+        mem_mb=get_mem_mb("clairs_postprocess_split", 32000)
     log:
         "logs/clairs_postprocess/{tumor}_{seqtype}_split_bed.log"
     benchmark:
@@ -384,7 +384,7 @@ rule clairs_postprocess_haplotype:
     threads:
         get_threads("clairs_postprocess_haplotype", 4)
     resources:
-        mem_mb=get_mem_mb("clairs_postprocess_haplotype", 16000)
+        mem_mb=get_mem_mb("clairs_postprocess_haplotype", 64000)
     log:
         "logs/clairs_postprocess/{tumor}_{seqtype}_haplotype.log"
     benchmark:

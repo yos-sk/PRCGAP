@@ -68,7 +68,7 @@ checkpoint deepsomatic_chunks:
     threads:
         get_threads("deepsomatic_chunks", 1)
     resources:
-        mem_mb=get_mem_mb("deepsomatic_chunks", 4000)
+        mem_mb=get_mem_mb("deepsomatic_chunks", 8000)
     log:
         "logs/deepsomatic/{tumor}_{seqtype}_chunks.log"
     benchmark:
@@ -192,9 +192,9 @@ rule deepsomatic_postprocess_prepare:
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:
-        get_threads("deepsomatic_postprocess", 4)
+        get_threads("deepsomatic_postprocess", 1)
     resources:
-        mem_mb=get_mem_mb("deepsomatic_postprocess", 16000)
+        mem_mb=get_mem_mb("deepsomatic_postprocess", 32000)
     log:
         "logs/deepsomatic_postprocess/{tumor}_{seqtype}_prepare.log"
     benchmark:
@@ -228,9 +228,9 @@ rule deepsomatic_postprocess_parse_vcf:
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:
-        get_threads("deepsomatic_postprocess", 4)
+        get_threads("deepsomatic_postprocess", 1)
     resources:
-        mem_mb=get_mem_mb("deepsomatic_postprocess", 16000)
+        mem_mb=get_mem_mb("deepsomatic_postprocess", 32000)
     log:
         "logs/deepsomatic_postprocess/{tumor}_{seqtype}_parse_vcf.log"
     benchmark:
@@ -297,7 +297,7 @@ rule deepsomatic_postprocess_split_bed:
     threads:
         get_threads("deepsomatic_postprocess_split", 1)
     resources:
-        mem_mb=get_mem_mb("deepsomatic_postprocess_split", 4000)
+        mem_mb=get_mem_mb("deepsomatic_postprocess_split", 32000)
     log:
         "logs/deepsomatic_postprocess/{tumor}_{seqtype}_split_bed.log"
     benchmark:
@@ -376,7 +376,7 @@ rule deepsomatic_postprocess_haplotype:
     threads:
         get_threads("deepsomatic_postprocess_haplotype", 4)
     resources:
-        mem_mb=get_mem_mb("deepsomatic_postprocess_haplotype", 16000)
+        mem_mb=get_mem_mb("deepsomatic_postprocess_haplotype", 64000)
     log:
         "logs/deepsomatic_postprocess/{tumor}_{seqtype}_haplotype.log"
     benchmark:

@@ -145,7 +145,7 @@ rule liftoff_hap:
     threads:
         get_threads("liftoff", 8)
     resources:
-        mem_mb=get_mem_mb("liftoff", 96000)
+        mem_mb=get_mem_mb("liftoff", 80000)
     log:
         "logs/annotation/{asmsrc}_liftoff_{hap}.log"
     benchmark:

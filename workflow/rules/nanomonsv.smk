@@ -20,7 +20,7 @@ rule nanomonsv_parse_hifi:
         sample="{sample}",
         output_dir="nanomonsv/hifi"
     threads:
-        get_threads("nanomonsv_parse", 4)
+        get_threads("nanomonsv_parse", 8)
     resources:
         mem_mb=get_mem_mb("nanomonsv_parse", 16000)
     log:
@@ -56,7 +56,7 @@ rule nanomonsv_parse_ont:
         sample="{sample}",
         output_dir="nanomonsv/ont"
     threads:
-        get_threads("nanomonsv_parse", 4)
+        get_threads("nanomonsv_parse", 8)
     resources:
         mem_mb=get_mem_mb("nanomonsv_parse", 16000)
     log:
@@ -184,9 +184,9 @@ rule nanomonsv_postprocess_hifi:
         tumor="{tumor}",
         output_dir="nanomonsv/hifi"
     threads:
-        get_threads("nanomonsv_postprocess", 4)
+        get_threads("nanomonsv_postprocess", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_postprocess", 16000)
+        mem_mb=get_mem_mb("nanomonsv_postprocess", 8000)
     log:
         "logs/nanomonsv/{tumor}_postprocess_hifi.log"
     benchmark:
@@ -215,9 +215,9 @@ rule nanomonsv_postprocess_ont:
         tumor="{tumor}",
         output_dir="nanomonsv/ont"
     threads:
-        get_threads("nanomonsv_postprocess", 4)
+        get_threads("nanomonsv_postprocess", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_postprocess", 16000)
+        mem_mb=get_mem_mb("nanomonsv_postprocess", 8000)
     log:
         "logs/nanomonsv/{tumor}_postprocess_ont.log"
     benchmark:
@@ -298,7 +298,7 @@ rule nanomonsv_insert_classify_hifi:
         gtf_file=lambda wc: liftoff_gtf(wc.tumor),
         line1_bed=lambda wc: line1_bed_src(annotation_src(wc.tumor))
     threads:
-        get_threads("nanomonsv_insert_classify", 4)
+        get_threads("nanomonsv_insert_classify", 8)
     resources:
         mem_mb=get_mem_mb("nanomonsv_insert_classify", 64000)
     log:
@@ -337,7 +337,7 @@ rule nanomonsv_insert_classify_ont:
         gtf_file=lambda wc: liftoff_gtf(wc.tumor),
         line1_bed=lambda wc: line1_bed_src(annotation_src(wc.tumor))
     threads:
-        get_threads("nanomonsv_insert_classify", 4)
+        get_threads("nanomonsv_insert_classify", 8)
     resources:
         mem_mb=get_mem_mb("nanomonsv_insert_classify", 64000)
     log:
@@ -375,9 +375,9 @@ rule nanomonsv_connect_hifi:
         tumor="{tumor}",
         output_dir="nanomonsv/hifi"
     threads:
-        get_threads("nanomonsv_connect", 4)
+        get_threads("nanomonsv_connect", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_connect", 16000)
+        mem_mb=get_mem_mb("nanomonsv_connect", 30000)
     log:
         "logs/nanomonsv/{tumor}_connect_hifi.log"
     benchmark:
@@ -405,9 +405,9 @@ rule nanomonsv_connect_ont:
         tumor="{tumor}",
         output_dir="nanomonsv/ont"
     threads:
-        get_threads("nanomonsv_connect", 4)
+        get_threads("nanomonsv_connect", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_connect", 16000)
+        mem_mb=get_mem_mb("nanomonsv_connect", 30000)
     log:
         "logs/nanomonsv/{tumor}_connect_ont.log"
     benchmark:
@@ -441,9 +441,9 @@ rule nanomonsv_merge:
     params:
         tumor="{tumor}"
     threads:
-        get_threads("nanomonsv_merge", 2)
+        get_threads("nanomonsv_merge", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_merge", 8000)
+        mem_mb=get_mem_mb("nanomonsv_merge", 30000)
     log:
         "logs/nanomonsv/{tumor}_merge.log"
     benchmark:
