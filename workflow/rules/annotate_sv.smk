@@ -48,40 +48,46 @@ def _nanomonsv_other_param(wildcards):
 #   SV       → `liftoff.bed.gz` (4-col-ish BED indexed with `tabix -p bed`)
 #   SNV/INDEL → `liftoff.gff.gz` (full GFF indexed with `tabix -p gff`)
 #
-# We accept only the GFF from the user (`gff_file`) and derive the SV
-# BED on the fly using the awk pipeline from PRCGAP-paper's assembly
+# The GFF comes from the workflow's own liftoff rule; the SV BED is derived
+# from it on the fly using the awk pipeline from PRCGAP-paper's assembly
 # annotation step:
 #   gene rows → drop pseudogenes → require gene_name → strip quotes/semis
 #   → 7-col BED (chr, start-1, end, gene_name, strand, gene_id,
 #   gene_biotype)
 # Then sort + bgzip + `tabix -p bed`.
+#
+# The BED is keyed on the assembly source sample, so samples sharing an
+# assembly share one BED.
 # ====================================================================
 
-LIFTOFF_GENE_BED = "annotate_common/liftoff.gene.bed.gz"
+def _liftoff_gene_bed(src):
+    return "annotate_common/{}/liftoff.gene.bed.gz".format(src)
 
 
-def _liftoff_bed_input(_wildcards):
-    return [LIFTOFF_GENE_BED] if _opt_path("gff_file") else []
+def _liftoff_bed_input(wildcards):
+    return [_liftoff_gene_bed(annotation_src(wildcards.tumor))]
 
 
-def _liftoff_bed_param(_wildcards):
-    return LIFTOFF_GENE_BED if _opt_path("gff_file") else ""
+def _liftoff_bed_param(wildcards):
+    return _liftoff_gene_bed(annotation_src(wildcards.tumor))
 
 
 rule gff_to_bed:
     input:
-        gff=_opt_path("gff_file") or [],
+        gff=lambda wc: as_input(liftoff_gff_src(wc.asmsrc)),
     output:
-        bed=LIFTOFF_GENE_BED,
-        tbi=LIFTOFF_GENE_BED + ".tbi",
+        bed="annotate_common/{asmsrc}/liftoff.gene.bed.gz",
+        tbi="annotate_common/{asmsrc}/liftoff.gene.bed.gz.tbi",
     message:
-        "--- liftoff GFF → sorted+tabix-indexed gene BED"
+        "--- liftoff GFF → sorted+tabix-indexed gene BED ({wildcards.asmsrc})"
     threads:
         get_threads("gff_to_bed", 1)
     resources:
-        mem_mb=get_mem_mb("gff_to_bed", 4000)
+        mem_mb=get_mem_mb("gff_to_bed", 8000)
     log:
-        "logs/annotate_common/gff_to_bed.log"
+        "logs/annotate_common/{asmsrc}_gff_to_bed.log"
+    benchmark:
+        "benchmarks/annotate_common/{asmsrc}_gff_to_bed.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -103,9 +109,8 @@ rule gff_to_bed:
 
 
 def _coordconv_input(wildcards, ref):
-    """Return the coordconv BED path if the chain is configured, else []."""
-    chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
-    if _opt_path(chain_key):
+    """Return the coordconv BED path if a chain is available, else []."""
+    if chain_file(wildcards.tumor, ref):
         return (
             "annotate_sv/" + wildcards.tumor + "/" + wildcards.seqtype + "/workspace/"
             + wildcards.tumor + ".coordconv_" + ref + ".bed"
@@ -119,8 +124,7 @@ def _coordconv_param(wildcards, ref):
     Mirrors _coordconv_input but always returns a string ("" when unset)
     so the shell wrapper can detect "skip this step" via empty arg.
     """
-    chain_key = "chain_to_grch38" if ref == "GRCh38" else "chain_to_chm13"
-    if _opt_path(chain_key):
+    if chain_file(wildcards.tumor, ref):
         return (
             "annotate_sv/" + wildcards.tumor + "/" + wildcards.seqtype + "/workspace/"
             + wildcards.tumor + ".coordconv_" + ref + ".bed"
@@ -151,6 +155,8 @@ rule prep_sv:
         mem_mb=get_mem_mb("prep_sv", 8000)
     log:
         "logs/annotate_sv/{tumor}_{seqtype}_prep.log"
+    benchmark:
+        "benchmarks/annotate_sv/{tumor}_{seqtype}_prep.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -170,12 +176,13 @@ rule prep_sv:
 rule coordconv_sv_grch38:
     input:
         bp_bed="annotate_sv/{tumor}/{seqtype}/workspace/{tumor}.bp.bed",
+        chain=lambda wc: as_input(chain_file(wc.tumor, "GRCh38")),
     output:
         "annotate_sv/{tumor}/{seqtype}/workspace/{tumor}.coordconv_GRCh38.bed"
     message:
         "--- coordconv (GRCh38) for {wildcards.tumor} {wildcards.seqtype}"
     params:
-        chain=_opt_path("chain_to_grch38"),
+        chain=lambda wc: chain_file(wc.tumor, "GRCh38"),
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:
@@ -184,6 +191,8 @@ rule coordconv_sv_grch38:
         mem_mb=get_mem_mb("coordconv_sv", 8000)
     log:
         "logs/annotate_sv/{tumor}_{seqtype}_coordconv_GRCh38.log"
+    benchmark:
+        "benchmarks/annotate_sv/{tumor}_{seqtype}_coordconv_GRCh38.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -195,12 +204,13 @@ rule coordconv_sv_grch38:
 rule coordconv_sv_chm13:
     input:
         bp_bed="annotate_sv/{tumor}/{seqtype}/workspace/{tumor}.bp.bed",
+        chain=lambda wc: as_input(chain_file(wc.tumor, "chm13")),
     output:
         "annotate_sv/{tumor}/{seqtype}/workspace/{tumor}.coordconv_chm13.bed"
     message:
         "--- coordconv (chm13) for {wildcards.tumor} {wildcards.seqtype}"
     params:
-        chain=_opt_path("chain_to_chm13"),
+        chain=lambda wc: chain_file(wc.tumor, "chm13"),
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:
@@ -209,6 +219,8 @@ rule coordconv_sv_chm13:
         mem_mb=get_mem_mb("coordconv_sv", 8000)
     log:
         "logs/annotate_sv/{tumor}_{seqtype}_coordconv_chm13.log"
+    benchmark:
+        "benchmarks/annotate_sv/{tumor}_{seqtype}_coordconv_chm13.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -259,6 +271,8 @@ rule annotate_sv_main:
         mem_mb=get_mem_mb("annotate_sv", 16000)
     log:
         "logs/annotate_sv/{tumor}_{seqtype}.log"
+    benchmark:
+        "benchmarks/annotate_sv/{tumor}_{seqtype}.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:
@@ -299,7 +313,10 @@ rule reclassify_sv:
         # the same output dir (see params.copynumber_dir).
         copynumber_png=lambda wc: "copynumber/{}/output/{}.copynumber.png".format(wc.tumor, wc.tumor),
     output:
-        "annotate_sv/{tumor}/{tumor}.{seqtype}.PRCGAP.nanomonsv_results.reclassified.txt",
+        # Beside its own input, under {seqtype}/, rather than one level up with
+        # the seqtype in the file name -- it is the same product of the same
+        # (tumor, seqtype) as annotated.txt.
+        "annotate_sv/{tumor}/{seqtype}/{tumor}.PRCGAP.nanomonsv_results.reclassified.txt",
     message:
         "--- Reclassifying SV types for {wildcards.tumor} ({wildcards.seqtype})"
     params:
@@ -313,6 +330,8 @@ rule reclassify_sv:
         mem_mb=get_mem_mb("reclassify_sv", 16000)
     log:
         "logs/annotate_sv/{tumor}_{seqtype}_reclassify.log"
+    benchmark:
+        "benchmarks/annotate_sv/{tumor}_{seqtype}_reclassify.tsv"
     singularity:
         config.get("singularity_images", {}).get("annotation", "")
     shell:

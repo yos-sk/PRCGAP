@@ -49,9 +49,23 @@ else
         --qv15
 fi
 
+# The tandem repeat flag only gates the test; whether a call is a copy-number
+# change of the array is decided from its inserted sequence, so score that first.
+# reference.fa above is the two haplotypes concatenated, which is what the
+# breakpoint contigs are named against.
+SCORE_ARGS=()
+if [ -n "${SIMPLE_REPEAT}" ]; then
+    python3 ${SCRIPTS_DIR}/nanomonsv/simple_repeat_score.py \
+        ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.txt \
+        ${OUTPUT_DIR}/${TUMOR}.simple_repeat_scores.tsv \
+        ${OUTPUT_DIR}/reference.fa
+    SCORE_ARGS=(--scores ${OUTPUT_DIR}/${TUMOR}.simple_repeat_scores.tsv)
+fi
+
 python3 ${SCRIPTS_DIR}/nanomonsv/add_simple_repeat.py \
     ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.txt \
     ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.filt.txt \
-    ${SIMPLE_REPEAT}
+    ${SIMPLE_REPEAT} \
+    "${SCORE_ARGS[@]}"
 
 echo ${?}

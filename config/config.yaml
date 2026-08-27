@@ -27,49 +27,124 @@ singularity_images:
   deepsomatic: ""
   point_mutation_postprocess: ""
   annotation: ""
+  dna_nn: ""                # only needed when run_dna_brnn: true
+  liftoff: ""
+  chain_files: ""           # only needed when run_chain_files: true
 
 # ---- per-rule resources (threads / mem_mb) ----
 # Numeric defaults shown below. Override per-rule as needed.
 resources:
+  dna_brnn:
+    threads: 8
+    mem_mb: 8000
+  liftoff_reference:
+    threads: 1
+    mem_mb: 8000
+  liftoff:
+    threads: 8
+    mem_mb: 80000
+  liftoff_merge:
+    threads: 1
+    mem_mb: 16000
+  prepare_mask_regions:
+    threads: 1
+    mem_mb: 10240
+  make_chain_files:
+    threads: 8
+    mem_mb: 48000
+  chain_files_merge:
+    threads: 1
+    mem_mb: 8000
+  line1:
+    threads: 8
+    mem_mb: 16000
+  line1_merge:
+    threads: 1
+    mem_mb: 8000
+  simple_repeat:
+    threads: 8
+    mem_mb: 32000
+  simple_repeat_merge:
+    threads: 1
+    mem_mb: 8000
   bam_refiner_kmer:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 32000
   bam_refiner:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 64000
   assembly_bwa_index:
     threads: 1
     mem_mb: 16000
   methylation:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 32000
+  # copynumber is split per haplotype; the granular keys below fall back to
+  # this one when unset.
   copynumber:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 48000
+  copynumber_reference:
+    threads: 1
+    mem_mb: 4000
+  copynumber_ref_table:
+    threads: 8
+    mem_mb: 48000
+  copynumber_ref_table_final:
+    threads: 1
+    mem_mb: 8000
+  copynumber_depth:
+    threads: 4
+    mem_mb: 8000
+  copynumber_segment:
+    threads: 1
+    mem_mb: 4000
+  copynumber_plot:
+    threads: 1
+    mem_mb: 4000
   nanomonsv_parse:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 16000
   nanomonsv_get:
-    threads: 16
-    mem_mb: 240000
+    threads: 8
+    mem_mb: 64000
   nanomonsv_postprocess:
     threads: 1
-    mem_mb: 30000
+    mem_mb: 8000
   nanomonsv_insert_classify:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 64000
   nanomonsv_connect:
     threads: 1
     mem_mb: 30000
   nanomonsv_merge:
     threads: 1
     mem_mb: 30000
+  # clairs / deepsomatic are per-CHUNK: the callers are scattered over contigs.
   clairs:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 32000
+  clairs_scatter_setup:
+    threads: 8
+    mem_mb: 16000
+  clairs_chunks:
+    threads: 1
+    mem_mb: 4000
+  clairs_merge:
+    threads: 1
+    mem_mb: 16000
   deepsomatic:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 32000
+  deepsomatic_scatter_setup:
+    threads: 8
+    mem_mb: 16000
+  deepsomatic_chunks:
+    threads: 1
+    mem_mb: 4000
+  deepsomatic_merge:
+    threads: 1
+    mem_mb: 16000
   clairs_postprocess:
     threads: 1
     mem_mb: 32000
@@ -77,11 +152,11 @@ resources:
     threads: 1
     mem_mb: 32000
   clairs_postprocess_realign:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 16000
   clairs_postprocess_pileup:
-    threads: 6
-    mem_mb: 240000
+    threads: 8
+    mem_mb: 32000
   clairs_postprocess_haplotype:
     threads: 4
     mem_mb: 64000
@@ -92,11 +167,11 @@ resources:
     threads: 1
     mem_mb: 32000
   deepsomatic_postprocess_realign:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 16000
   deepsomatic_postprocess_pileup:
-    threads: 6
-    mem_mb: 240000
+    threads: 8
+    mem_mb: 32000
   deepsomatic_postprocess_haplotype:
     threads: 4
     mem_mb: 64000
@@ -126,9 +201,9 @@ resources:
 hap1_satellite: ""
 hap2_satellite: ""
 sex: female            # one of: "female" | "male"
-simple_repeat: ""
-gtf_file: ""           # liftoff GTF for nanomonsv insert_classify
-line1_bed: ""
+simple_repeat: ""      # superseded when run_simple_repeat: true
+line1_bed: ""          # superseded when run_line1: true
+simple_repeat_min_copies: 4   # min repeat copies to keep when run_simple_repeat: true
 
 # ---- copy number plot params ----
 copynumber_binwidth: 0.05        # bin width for the depth-ratio mode/ploidy estimate
@@ -140,10 +215,61 @@ copynumber_plot_sex_chrom: true  # force chrX/chrY onto the plot even if absent 
 chm13_censat: ""                 # CHM13 cenSat v2.1 BED(.gz): fill assembly gaps in the plot (optional)
 # CHM13 chr lengths for the plot's terminal margin are derived at plot time from
 # chm13_fasta via chromosome_length.py (no separate file needed).
-pileup_no_baq: false
+# ---- point-mutation caller ----
+mutation_caller: deepsomatic     # deepsomatic (default) | clairs | both
+
+# ---- scratch ----
+debug: false                     # true keeps every workspace/, the caller scatter
+                                 #   dirs, bwa_index/ and the nanomonsv/realign side
+                                 #   products a successful run otherwise deletes
+# Callers are scattered over contigs; contigs are never split. A contig at least
+# this long gets a job of its own; all shorter ones share one job. 0 = strictly
+# one job per contig.
+caller_solo_contig_min_bp: 1000000
+# postprocess_variants' worker count. Its own default is the node's core count
+# and ignores --num_shards / the scheduler allocation.
+deepsomatic_postprocess_variants_cpus: 1
+
+pileup_no_baq: 'true'            # --no-BAQ in the pileup step (large peak-RSS saving; 'false' = keep BAQ)
+pileup_max_depth: 0              # samtools mpileup -d (0 = samtools default 8000)
+pileup_num_chunks: 16           # target max pileup chunks (contigs packed into balanced, -r-seekable chunks)
+
+# ---- optional nanomonsv steps (not used in the paper) ----
+run_nanomonsv_connect: false     # nanomonsv connect
+run_nanomonsv_merge: false       # combine HiFi+ONT results (only runs when both seqtypes are present)
+
+# Which sequencing types the point-mutation callers run on.
+#   primary  one seqtype only, HiFi when both are present (default)
+#   all      every seqtype available for both tumor and normal
+# SV (nanomonsv) and methylation always use every available seqtype.
+mutation_seqtypes: primary
+
+# ---- in-workflow annotation (opt-in per step) ----
+# Turn a switch on and PRCGAP builds that annotation from the assembly plus the
+# CHM13/GRCh38 references, instead of importing it from assembly_workflow. The
+# generated file then supersedes the corresponding path key below, which can be
+# left "".
+run_dna_brnn: true             # → hap1_satellite / hap2_satellite
+                               #   only consumer is the copy-number plot's cen/sat
+                               #   track, so setting censat_bed turns this off
+                               #   regardless
+run_line1: true                # → line1_bed      (no extra reference needed)
+                               #   full-length young L1 for nanomonsv insert_classify
+run_simple_repeat: true        # → simple_repeat  (no extra reference needed)
+                               #   ULTRA period<=10, for nanomonsv get indel filtering
+run_chain_files: true          # → chain_to_chm13 / chain_to_grch38
+                               #   (needs chm13_fasta, grch38_fasta, chm13_censat,
+                               #    grch38_centromeres, grch38_exclusions)
+
+# The liftoff gene annotation has no switch: it is always built here, so
+# grch38_fasta and grch38_gtf are required.
+#
+# Reference inputs for the steps above; see resource/scripts/download_reference.sh.
+grch38_gtf: ""                 # GRCh38 GTF with chr* contig names (plain .gtf)
+grch38_centromeres: ""         # UCSC hg38 centromeres.txt(.gz)
+grch38_exclusions: ""          # GRC exclusion regions BED
 
 # ---- annotation resources (set to "" to skip the corresponding step) ----
-gff_file: ""                   # tabix-indexed liftoff GFF for SV/SNV/INDEL gene annotation
 chain_to_grch38: ""
 chain_to_chm13: ""
 repeat_masker_bed: ""
@@ -153,7 +279,8 @@ misassembly_hap1_bed: ""
 misassembly_hap2_bed: ""
 cancer_gene_census_tsv: ""
 cmrg_gene_tsv: ""
-gencode_transcript_bed: ""
+mane_summary: ""                # MANE.GRCh38.vX.Y.summary.txt.gz; restricts the
+                                #  SNV/INDEL gene annotation to MANE transcripts
 gnomad_bed: ""
 gnomad_vcf: ""
 grch38_fasta: ""

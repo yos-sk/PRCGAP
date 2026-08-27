@@ -28,14 +28,32 @@ def annotation_gene(args) -> None:
         
         return out
 
-    def get_transcript_ids(gene_transcript_file: str) -> dict:
+    def get_transcript_ids(mane_summary_file: str) -> dict:
+        """symbol -> {gene_id, [transcript_id]} from the MANE summary.
+
+        Columns are located by name off the '#'-prefixed header rather than by
+        position. Ensembl_Gene / Ensembl_nuc carry their version suffix and are
+        kept as-is: a MANE release is tied to one Ensembl release, so a version
+        that no longer matches the liftoff GTF means the two are out of step and
+        should be updated together, not silently reconciled here.
+        """
         out = dict()
-        with gzip.open(gene_transcript_file, "rt") as f:
+        opener = gzip.open if mane_summary_file.endswith(".gz") else open
+        with opener(mane_summary_file, "rt") as f:
+            header = None
             for line in f:
                 items = line.rstrip("\n").split("\t")
-                gene_name = items[6]
-                gene_id = items[7]
-                transcript_id = items[3]
+                if header is None:
+                    header = {name.lstrip("#"): i for i, name in enumerate(items)}
+                    for required in ("symbol", "Ensembl_Gene", "Ensembl_nuc"):
+                        if required not in header:
+                            raise KeyError(
+                                f"{mane_summary_file}: MANE summary is missing "
+                                f"column '{required}'")
+                    continue
+                gene_name = items[header["symbol"]]
+                gene_id = items[header["Ensembl_Gene"]]
+                transcript_id = items[header["Ensembl_nuc"]]
                 if gene_name in out:
                     out[gene_name]["transcript_id"].append(transcript_id)
                 else:
@@ -53,6 +71,8 @@ def annotation_gene(args) -> None:
 
         return out
     
+    version_mismatch = set()
+
     def tbx_annotation(tchr: str, tstart: int, tend: int, annotation_tbx, selected_transcript_id: dict) -> str:
         tabix_error_flag = False
         try:
@@ -72,15 +92,35 @@ def annotation_gene(args) -> None:
                     gene_name = parsed_gff_info["gene_name"] if "gene_name" in parsed_gff_info else parsed_gff_info["gene_id"]
                     gene_id = parsed_gff_info["gene_id"] + "." + parsed_gff_info["gene_version"]
                     transcript_id = parsed_gff_info["transcript_id"] + "." + parsed_gff_info["transcript_version"]
-                    if transcript_id in selected_transcript_id[gene_name]["transcript_id"] and gene_id == selected_transcript_id[gene_name]["gene_id"]:
-                        if gene_name in output:
-                            if transcript_id in output[gene_name]:
-                                if record[2] in ["five_prime_utr", "start_codon", "CDS", "stop_codon", "three_prime_utr"]:
-                                    output[gene_name][transcript_id] = record[2]
-                                else:
-                                    output[gene_name][transcript_id] = record[2]
+                    # Restrict to the MANE transcripts when the summary was
+                    # given; without it every protein-coding transcript over the
+                    # site is reported. A gene absent from MANE has no selected
+                    # transcript and is dropped: reporting all of its transcripts
+                    # instead would make the column hard to read.
+                    if selected_transcript_id is not None:
+                        selected = selected_transcript_id.get(gene_name)
+                        if selected is None: continue
+                        if (transcript_id not in selected["transcript_id"]
+                                or gene_id != selected["gene_id"]):
+                            # Same transcript at a different version means the
+                            # MANE release and the liftoff GTF's Ensembl release
+                            # are out of step; counted and reported once at the
+                            # end so it cannot pass as "no gene here".
+                            bare = transcript_id.split(".")[0]
+                            if any(t.split(".")[0] == bare
+                                   for t in selected["transcript_id"]):
+                                version_mismatch.add(transcript_id)
+                            continue
+                    if gene_name in output:
+                        if transcript_id in output[gene_name]:
+                            if record[2] in ["five_prime_utr", "start_codon", "CDS", "stop_codon", "three_prime_utr"]:
+                                output[gene_name][transcript_id] = record[2]
+                            else:
+                                output[gene_name][transcript_id] = record[2]
                         else:
-                            output[gene_name] = {transcript_id: record[2]}
+                            output[gene_name][transcript_id] = record[2]
+                    else:
+                        output[gene_name] = {transcript_id: record[2]}
                                 
         return output
     
@@ -88,7 +128,7 @@ def annotation_gene(args) -> None:
     cgc_gene_set = open_cgc_file(args.cgc) if args.cgc is not None else None
     cmrg_gene_set = open_cmrg_file(args.cmrg) if args.cmrg is not None else None
 
-    selected_transcript_id = get_transcript_ids(args.gencode)
+    selected_transcript_id = get_transcript_ids(args.mane) if args.mane is not None else None
 
     
     with open(args.input, 'r') as hin, open(args.output, 'w') as hout:
@@ -113,26 +153,43 @@ def annotation_gene(args) -> None:
             else:
                 record = "-\t-"
             
-            output = set()
-            for i, key in enumerate(annot_gene):
-                if key in cgc_gene_set:
-                    output.add(key)
-            if len(output) != 0:
-                record = record + "\t" + ",".join([k for k in output])
+            if cgc_gene_set is None:
+                # Optional database: not evaluated, not a negative.
+                record = record + "\t-"
             else:
-                record = record + "\tFalse" 
+                output = set()
+                for i, key in enumerate(annot_gene):
+                    if key in cgc_gene_set:
+                        output.add(key)
+                if len(output) != 0:
+                    record = record + "\t" + ",".join([k for k in output])
+                else:
+                    record = record + "\tFalse" 
 
-            output = set()
-            for i, key in enumerate(annot_gene):
-                if key in cmrg_gene_set:
-                    output.add(key)
-            if len(output) != 0:
-                record = record + "\t" + ",".join([k for k in output])
+            if cmrg_gene_set is None:
+                # Optional database: not evaluated, not a negative.
+                record = record + "\t-"
             else:
-                record = record + "\tFalse" 
+                output = set()
+                for i, key in enumerate(annot_gene):
+                    if key in cmrg_gene_set:
+                        output.add(key)
+                if len(output) != 0:
+                    record = record + "\t" + ",".join([k for k in output])
+                else:
+                    record = record + "\tFalse" 
 
             print('\t'.join(F.values()), record, sep="\t", file = hout)
-        
+
+    if version_mismatch:
+        print(f"WARNING: {len(version_mismatch)} transcripts matched a MANE "
+              f"entry by ID but not by version, e.g. "
+              f"{', '.join(sorted(version_mismatch)[:3])}. The MANE summary and "
+              f"the Ensembl GTF used for liftoff are different releases; update "
+              f"both together. Those genes carry no gene annotation.",
+              file = sys.stderr)
+
+
 def annotation_rmsk(args) -> None:
     def tbx_annotation_feature(tchr: str, tstart: int, tend: int, annotation_tbx) -> list:
         tabix_error_flag = False
@@ -416,8 +473,9 @@ def arg_parser():
     gene.add_argument("--cmrg", "-m", type = str, default = None,
                         help = "Path to the challenging medically relevant gene file")
 
-    gene.add_argument("--gencode", "-t", type = str, default = None,
-                        help = "Path to the MANE select transcript file")
+    gene.add_argument("--mane", "-t", type = str, default = None,
+                        help = "Path to the MANE summary file "
+                               "(MANE.GRCh38.vX.Y.summary.txt.gz)")
     
     gene.set_defaults(func=annotation_gene)
     

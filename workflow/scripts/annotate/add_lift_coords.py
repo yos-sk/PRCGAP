@@ -13,8 +13,7 @@ scripts bundle two responsibilities:
 (b) is the comparison step that proposal step 3 explicitly defers, so
 this script keeps (a) only. The reference's `GRCh38_flag`/`chm13_flag`
 columns (which would hold the result of (b)) are omitted entirely rather
-than emitted as `-` placeholders; re-add them here (and re-add the two
-index positions in check_homozygous_{snv,indel}.py) if (b) is implemented.
+than emitted as `-` placeholders; re-add them here if (b) is implemented.
 
 Two modes:
   --mode snv    Reads `coordconv` output BEDs (one for GRCh38, one for

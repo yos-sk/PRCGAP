@@ -20,11 +20,13 @@ rule nanomonsv_parse_hifi:
         sample="{sample}",
         output_dir="nanomonsv/hifi"
     threads:
-        get_threads("nanomonsv_parse", 4)
+        get_threads("nanomonsv_parse", 8)
     resources:
         mem_mb=get_mem_mb("nanomonsv_parse", 16000)
     log:
         "logs/nanomonsv/{sample}_parse_hifi.log"
+    benchmark:
+        "benchmarks/nanomonsv/{sample}_parse_hifi.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -54,11 +56,13 @@ rule nanomonsv_parse_ont:
         sample="{sample}",
         output_dir="nanomonsv/ont"
     threads:
-        get_threads("nanomonsv_parse", 4)
+        get_threads("nanomonsv_parse", 8)
     resources:
         mem_mb=get_mem_mb("nanomonsv_parse", 16000)
     log:
         "logs/nanomonsv/{sample}_parse_ont.log"
+    benchmark:
+        "benchmarks/nanomonsv/{sample}_parse_ont.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -82,6 +86,7 @@ rule nanomonsv_get_hifi:
         normal_bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
+        simple_repeat=lambda wc: as_input(simple_repeat_bed_src(annotation_src(wc.tumor))),
     output:
         result="nanomonsv/hifi/{tumor}.nanomonsv.result.txt",
         supporting="nanomonsv/hifi/{tumor}.nanomonsv.supporting_read.txt"
@@ -91,13 +96,15 @@ rule nanomonsv_get_hifi:
         tumor="{tumor}",
         normal=lambda wc: get_paired_normal(wc.tumor),
         output_dir="nanomonsv/hifi",
-        simple_repeat=config.get("simple_repeat", "")
+        simple_repeat=lambda wc: simple_repeat_bed_src(annotation_src(wc.tumor))
     threads:
         get_threads("nanomonsv_get", 8)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_get", 32000)
+        mem_mb=get_mem_mb("nanomonsv_get", 64000)
     log:
         "logs/nanomonsv/{tumor}_get_hifi.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_get_hifi.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -124,6 +131,7 @@ rule nanomonsv_get_ont:
         normal_bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(get_paired_normal(wc.tumor), get_paired_normal(wc.tumor)),
         assembly_hap1=lambda wc: samples.loc[wc.tumor, "assembly_hap1"],
         assembly_hap2=lambda wc: samples.loc[wc.tumor, "assembly_hap2"],
+        simple_repeat=lambda wc: as_input(simple_repeat_bed_src(annotation_src(wc.tumor))),
     output:
         result="nanomonsv/ont/{tumor}.nanomonsv.result.txt",
         supporting="nanomonsv/ont/{tumor}.nanomonsv.supporting_read.txt"
@@ -133,13 +141,15 @@ rule nanomonsv_get_ont:
         tumor="{tumor}",
         normal=lambda wc: get_paired_normal(wc.tumor),
         output_dir="nanomonsv/ont",
-        simple_repeat=config.get("simple_repeat", "")
+        simple_repeat=lambda wc: simple_repeat_bed_src(annotation_src(wc.tumor))
     threads:
         get_threads("nanomonsv_get", 8)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_get", 32000)
+        mem_mb=get_mem_mb("nanomonsv_get", 64000)
     log:
         "logs/nanomonsv/{tumor}_get_ont.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_get_ont.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -174,11 +184,13 @@ rule nanomonsv_postprocess_hifi:
         tumor="{tumor}",
         output_dir="nanomonsv/hifi"
     threads:
-        get_threads("nanomonsv_postprocess", 4)
+        get_threads("nanomonsv_postprocess", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_postprocess", 16000)
+        mem_mb=get_mem_mb("nanomonsv_postprocess", 8000)
     log:
         "logs/nanomonsv/{tumor}_postprocess_hifi.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_postprocess_hifi.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv_postprocess", "")
     shell:
@@ -203,11 +215,13 @@ rule nanomonsv_postprocess_ont:
         tumor="{tumor}",
         output_dir="nanomonsv/ont"
     threads:
-        get_threads("nanomonsv_postprocess", 4)
+        get_threads("nanomonsv_postprocess", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_postprocess", 16000)
+        mem_mb=get_mem_mb("nanomonsv_postprocess", 8000)
     log:
         "logs/nanomonsv/{tumor}_postprocess_ont.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_postprocess_ont.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv_postprocess", "")
     shell:
@@ -249,6 +263,8 @@ rule assembly_bwa_index:
         mem_mb=get_mem_mb("assembly_bwa_index", 16000)
     log:
         "logs/bwa_index/{sample}.log"
+    benchmark:
+        "benchmarks/bwa_index/{sample}.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -270,6 +286,8 @@ rule nanomonsv_insert_classify_hifi:
         result="nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt",
         assembly_hap1=lambda wc: "bwa_index/{}/hap1.fa".format(get_kmer_source(wc.tumor)),
         assembly_hap2=lambda wc: "bwa_index/{}/hap2.fa".format(get_kmer_source(wc.tumor)),
+        gtf=lambda wc: as_input(liftoff_gtf(wc.tumor)),
+        line1_bed=lambda wc: as_input(line1_bed_src(annotation_src(wc.tumor))),
     output:
         "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt"
     message:
@@ -277,14 +295,16 @@ rule nanomonsv_insert_classify_hifi:
     params:
         tumor="{tumor}",
         output_dir="nanomonsv/hifi",
-        gtf_file=config.get("gtf_file", ""),
-        line1_bed=config.get("line1_bed", "")
+        gtf_file=lambda wc: liftoff_gtf(wc.tumor),
+        line1_bed=lambda wc: line1_bed_src(annotation_src(wc.tumor))
     threads:
-        get_threads("nanomonsv_insert_classify", 4)
+        get_threads("nanomonsv_insert_classify", 8)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_insert_classify", 16000)
+        mem_mb=get_mem_mb("nanomonsv_insert_classify", 64000)
     log:
         "logs/nanomonsv/{tumor}_insert_classify_hifi.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_insert_classify_hifi.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -295,8 +315,8 @@ rule nanomonsv_insert_classify_hifi:
             {params.tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt \
             {input.assembly_hap1} \
             {input.assembly_hap2} \
-            {params.gtf_file} \
-            {params.line1_bed} \
+            "{params.gtf_file}" \
+            "{params.line1_bed}" \
             {SCRIPTS_DIR} &> {log}
         """
 
@@ -305,6 +325,8 @@ rule nanomonsv_insert_classify_ont:
         result="nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.txt",
         assembly_hap1=lambda wc: "bwa_index/{}/hap1.fa".format(get_kmer_source(wc.tumor)),
         assembly_hap2=lambda wc: "bwa_index/{}/hap2.fa".format(get_kmer_source(wc.tumor)),
+        gtf=lambda wc: as_input(liftoff_gtf(wc.tumor)),
+        line1_bed=lambda wc: as_input(line1_bed_src(annotation_src(wc.tumor))),
     output:
         "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt"
     message:
@@ -312,14 +334,16 @@ rule nanomonsv_insert_classify_ont:
     params:
         tumor="{tumor}",
         output_dir="nanomonsv/ont",
-        gtf_file=config.get("gtf_file", ""),
-        line1_bed=config.get("line1_bed", "")
+        gtf_file=lambda wc: liftoff_gtf(wc.tumor),
+        line1_bed=lambda wc: line1_bed_src(annotation_src(wc.tumor))
     threads:
-        get_threads("nanomonsv_insert_classify", 4)
+        get_threads("nanomonsv_insert_classify", 8)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_insert_classify", 16000)
+        mem_mb=get_mem_mb("nanomonsv_insert_classify", 64000)
     log:
         "logs/nanomonsv/{tumor}_insert_classify_ont.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_insert_classify_ont.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -330,8 +354,8 @@ rule nanomonsv_insert_classify_ont:
             {params.tumor}.nanomonsv.new_result.sv_typed.insert_classified.txt \
             {input.assembly_hap1} \
             {input.assembly_hap2} \
-            {params.gtf_file} \
-            {params.line1_bed} \
+            "{params.gtf_file}" \
+            "{params.line1_bed}" \
             {SCRIPTS_DIR} &> {log}
         """
 
@@ -351,11 +375,13 @@ rule nanomonsv_connect_hifi:
         tumor="{tumor}",
         output_dir="nanomonsv/hifi"
     threads:
-        get_threads("nanomonsv_connect", 4)
+        get_threads("nanomonsv_connect", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_connect", 16000)
+        mem_mb=get_mem_mb("nanomonsv_connect", 30000)
     log:
         "logs/nanomonsv/{tumor}_connect_hifi.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_connect_hifi.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -379,11 +405,13 @@ rule nanomonsv_connect_ont:
         tumor="{tumor}",
         output_dir="nanomonsv/ont"
     threads:
-        get_threads("nanomonsv_connect", 4)
+        get_threads("nanomonsv_connect", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_connect", 16000)
+        mem_mb=get_mem_mb("nanomonsv_connect", 30000)
     log:
         "logs/nanomonsv/{tumor}_connect_ont.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_connect_ont.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv", "")
     shell:
@@ -413,11 +441,13 @@ rule nanomonsv_merge:
     params:
         tumor="{tumor}"
     threads:
-        get_threads("nanomonsv_merge", 2)
+        get_threads("nanomonsv_merge", 1)
     resources:
-        mem_mb=get_mem_mb("nanomonsv_merge", 8000)
+        mem_mb=get_mem_mb("nanomonsv_merge", 30000)
     log:
         "logs/nanomonsv/{tumor}_merge.log"
+    benchmark:
+        "benchmarks/nanomonsv/{tumor}_merge.tsv"
     singularity:
         config.get("singularity_images", {}).get("nanomonsv_postprocess", "")
     shell:

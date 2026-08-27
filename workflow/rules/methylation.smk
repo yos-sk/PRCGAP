@@ -22,6 +22,8 @@ rule methylation_hifi:
         mem_mb=get_mem_mb("methylation", 32000)
     log:
         "logs/methylation/{sample}_hifi.log"
+    benchmark:
+        "benchmarks/methylation/{sample}_hifi.tsv"
     singularity:
         config.get("singularity_images", {}).get("methylation", "")
     shell:
@@ -57,6 +59,8 @@ rule methylation_ont:
         mem_mb=get_mem_mb("methylation", 32000)
     log:
         "logs/methylation/{sample}_ont.log"
+    benchmark:
+        "benchmarks/methylation/{sample}_ont.tsv"
     singularity:
         config.get("singularity_images", {}).get("methylation", "")
     shell:

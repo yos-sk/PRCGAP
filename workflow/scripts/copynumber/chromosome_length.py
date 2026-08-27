@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Emit per-chromosome lengths (chr<TAB>start<TAB>end, with header; chrM skipped)
-# from a FASTA. Used by copynumber.sh at plot time to build the CHM13 chromosome
+# from a FASTA. Used by copynumber_reference.sh to build the CHM13 chromosome
 # lengths passed to plot_copy_number.R --chm13_lengths (so each chromosome can be
 # extended to its CHM13 end / unaligned terminal margin). Ported from
 # PRCGAP-paper/reference/scripts/chromosome_length.py (added the missing

@@ -75,6 +75,18 @@ RUN R -e "pkgs <- c('DNAcopy','tidyverse','optparse','scales','dplyr','patchwork
           if (any(!ok)) { stop('Missing R packages: ', paste(pkgs[!ok], collapse = ', ')); }; \
           cat('All R packages installed:', paste(pkgs, collapse = ', '), '\n')"
 
+# Install mosdepth.
+RUN wget https://github.com/brentp/mosdepth/releases/download/v0.3.11/mosdepth \
+        -O /usr/local/bin/mosdepth && \
+    chmod +x /usr/local/bin/mosdepth
+
+# Install seqtk. No release binary is published, so build from source; the
+# Makefile's install target puts seqtk in /usr/local/bin.
+RUN wget https://github.com/lh3/seqtk/archive/refs/tags/v1.4.tar.gz -O seqtk-1.4.tar.gz && \
+    tar zxf seqtk-1.4.tar.gz && \
+    cd seqtk-1.4 && make && make install && \
+    cd .. && rm -rf seqtk-1.4 seqtk-1.4.tar.gz
+
 ENV PATH="/usr/local/bin:${PATH}"
 ENV PATH="/opt/minimap2-2.28_x64-linux:${PATH}"
 

@@ -7,11 +7,10 @@
 # — no per-image override flags needed.
 #
 # Usage (run from this images/ directory):
-#   cd images
-#   bash pull_images.sh                       # pull missing images
-#   bash pull_images.sh --force               # re-pull everything (even if .sif exists)
-#   bash pull_images.sh clairs deepsomatic    # pull just these modules
-#   bash pull_images.sh --force clairs        # re-pull a single module
+#   bash images/pull_images.sh                       # pull missing images
+#   bash images/pull_images.sh --force               # re-pull everything (even if .sif exists)
+#   bash images/pull_images.sh clairs deepsomatic    # pull just these modules
+#   bash images/pull_images.sh --force clairs        # re-pull a single module
 #
 # Notes:
 # - Requires `singularity` (or `apptainer`) on PATH.
@@ -24,15 +23,20 @@ set -euo pipefail
 # Stored as a plain array of "key uri" strings (not declare -A) so the script
 # also runs under the bash 3.2 shipped on macOS.
 declare -a IMAGES=(
-    "bam_refiner                 docker://yosakam2/bam_refiner:v0.3.6"
+    "bam_refiner                 docker://yosakam2/bam_refiner:v0.4.0"
     "methylation                 docker://yosakam2/methylation:v0.1.0"
-    "copynumber                  docker://yosakam2/copynumber:v0.2.0"
+    "copynumber                  docker://yosakam2/copynumber:v0.3.0"
     "nanomonsv                   docker://yosakam2/nanomonsv:v0.8.0"
-    "nanomonsv_postprocess       docker://yosakam2/nanomonsv_postprocess:v0.2.5"
+    "nanomonsv_postprocess       docker://yosakam2/nanomonsv_postprocess:v0.2.6"
     "clairs                      docker://yosakam2/clairs:v0.4.0"
     "deepsomatic                 docker://yosakam2/deepsomatic:v1.8.0"
-    "point_mutation_postprocess  docker://yosakam2/mutation_postprocess:v0.1.2"
-    "annotation                  docker://yosakam2/annotation:v0.1"
+    "point_mutation_postprocess  docker://yosakam2/mutation_postprocess:v0.1.3"
+    "annotation                  docker://yosakam2/annotation:v0.2"
+    # In-workflow annotation generation (setup_workflow.py --run-dna-brnn /
+    # --run-liftoff / --run-chain-files). Shared with the assembly_workflow repo.
+    "dna_nn                      docker://yosakam2/dna-nn:v0.1"
+    "liftoff                     docker://yosakam2/liftoff:1.6.3"
+    "chain_files                 docker://yosakam2/chaintools:2a3b47e"
 )
 
 FORCE=0
@@ -61,7 +65,9 @@ else
 fi
 
 # Images are written to the current directory; run this script from images/.
-OUT_DIR="."
+# Resolve from the script's own location so the images land beside it
+# whatever the working directory is.
+OUT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 
 pull_one() {
     local key="$1"
