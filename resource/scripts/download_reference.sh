@@ -70,6 +70,13 @@ zgrep -v "#" "${OUTDIR}/Homo_sapiens.GRCh38.112.chr.gtf.gz" \
   | sed 's/^chrMT/chrM/' \
   > "${OUTDIR}/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf"
 
+# ---- MANE summary (SNV/INDEL gene annotation) ----
+# Picks the representative transcript per gene for the gene annotation. Its
+# Ensembl IDs are matched with their version, so the release has to move together
+# with the Ensembl GTF above: v1.3 pairs with Ensembl 112.
+wget -P "${OUTDIR}" \
+  https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.3/MANE.GRCh38.v1.3.summary.txt.gz
+
 # ---- LINE-1 subunit models for --run-line1 ----
 # Written into resource/line1/, not OUTDIR: line1_hap.sh reads them
 # from the repo, so there is nothing to pass to setup_workflow.py. Needs
@@ -95,7 +102,8 @@ Pass them to setup_workflow.py, e.g.:
     --chm13-censat ${OUTDIR}/chm13v2.0_censat_v2.1.bed.gz \\
     --grch38-centromeres ${OUTDIR}/centromeres.txt.gz \\
     --grch38-exclusions ${OUTDIR}/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed \\
-    --run-dna-brnn --run-liftoff --run-chain-files --run-line1 --run-simple-repeat
+    --mane-summary ${OUTDIR}/MANE.GRCh38.v1.3.summary.txt.gz \\
+    --run-dna-brnn --run-chain-files --run-line1 --run-simple-repeat
 
 The LINE-1 models are in resource/line1/ and need no flag.
 EOF

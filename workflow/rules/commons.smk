@@ -89,6 +89,24 @@ def paired_seqtypes(tumor):
     nset = set(sample_seqtypes(normal))
     return [s for s in ("hifi", "ont") if s in tset and s in nset]
 
+def mutation_seqtypes(tumor):
+    """Seqtypes the point-mutation callers run on.
+
+    Default `primary`: one seqtype only, HiFi when both are present. SNV/INDEL
+    calling is validated on HiFi, and on a HiFi+ONT sample the ONT caller arm is
+    the more expensive of the two while adding calls that carry no such support.
+    SV (nanomonsv) and methylation stay per-seqtype -- both have their own reason
+    to want ONT. Set mutation_seqtypes: all to call on every paired seqtype.
+    """
+    mode = str(config.get("mutation_seqtypes", "primary")).lower()
+    if mode == "all":
+        return paired_seqtypes(tumor)
+    if mode != "primary":
+        raise ValueError(
+            "mutation_seqtypes must be 'primary' or 'all', got " + repr(mode))
+    return [primary_paired_seqtype(tumor)]
+
+
 def primary_paired_seqtype(tumor):
     """Preferred single seqtype available for both tumor and its normal."""
     seqtypes = paired_seqtypes(tumor)
@@ -184,25 +202,20 @@ MASKED_REF_DIR = "annotation/references"
 
 
 # dna-brnn and the chain files default on, so a run given only the assembly and
-# the CHM13/GRCh38 references produces those itself. liftoff is opt-in: it is the
-# heaviest step (8 threads x 128 GB per haplotype) and gene annotation is not
-# required by every downstream rule. Set a switch false, or leave run_liftoff
-# off, to import that annotation from assembly_workflow through the path keys.
+# the CHM13/GRCh38 references produces those itself. liftoff has no switch: the
+# gene annotation is always built here, so grch38_fasta and grch38_gtf are
+# required inputs and there is no path key to import one from elsewhere.
 #
 # dna-brnn no longer feeds the reference table -- that runs unmasked -- so the
 # satellite BEDs exist for the copy-number plot's cen/sat track alone, where a
 # contig-coordinate cenSat BED (config censat_bed) supersedes them when given.
 def run_dna_brnn():
     """A contig-coordinate cenSat BED supersedes the satellite BEDs wherever
-    they are used, so censat_bed turns the step off however the switch is set.
-    dna-brnn costs 69 min per haplotype and its output would go unread."""
+    they are used, so censat_bed turns the step off however the switch is set --
+    the step is not cheap and its output would go unread."""
     if (config.get("censat_bed", "") or ""):
         return False
     return bool(config.get("run_dna_brnn", True))
-
-
-def run_liftoff():
-    return bool(config.get("run_liftoff", False))
 
 
 def run_chain_files():
@@ -238,9 +251,7 @@ def satellite_bed(sample, hap):
 
 def liftoff_gff_src(src):
     """Tabix-indexed liftoff GFF for an assembly source sample."""
-    if run_liftoff():
-        return "{}/{}/liftoff/{}.liftoff.gff.gz".format(ANNOTATION_DIR, src, src)
-    return config.get("gff_file", "") or ""
+    return "{}/{}/liftoff/{}.liftoff.gff.gz".format(ANNOTATION_DIR, src, src)
 
 
 def liftoff_gff(sample):
@@ -249,9 +260,7 @@ def liftoff_gff(sample):
 
 def liftoff_gtf_src(src):
     """liftoff GTF.gz for an assembly source sample (nanomonsv insert_classify)."""
-    if run_liftoff():
-        return "{}/{}/liftoff/{}.liftoff.gtf.gz".format(ANNOTATION_DIR, src, src)
-    return config.get("gtf_file", "") or ""
+    return "{}/{}/liftoff/{}.liftoff.gtf.gz".format(ANNOTATION_DIR, src, src)
 
 
 def liftoff_gtf(sample):
@@ -304,10 +313,10 @@ def as_input(*paths):
     return [p for p in paths if p]
 
 
-# Every run_* step that needs extra reference inputs is checked up front, so a
-# missing reference fails at DAG construction rather than hours into the run.
+# Every annotation step that needs extra reference inputs is checked up front, so
+# a missing reference fails at DAG construction rather than hours into the run.
 _ANNOTATION_REQUIREMENTS = [
-    (run_liftoff, "run_liftoff", ["grch38_fasta", "grch38_gtf"]),
+    (lambda: True, "liftoff", ["grch38_fasta", "grch38_gtf"]),
     (run_chain_files, "run_chain_files",
      ["chm13_fasta", "grch38_fasta", "chm13_censat",
       "grch38_centromeres", "grch38_exclusions"]),
@@ -319,7 +328,7 @@ for _enabled, _flag, _needed in _ANNOTATION_REQUIREMENTS:
     _missing = [k for k in _needed if not (config.get(k, "") or "")]
     if _missing:
         raise ValueError(
-            _flag + " is enabled but these config keys are empty: "
+            _flag + " needs these config keys, which are empty: "
             + ", ".join(_missing)
             + ". Run resource/scripts/download_reference.sh and pass the corresponding "
               "setup_workflow.py flags.")

@@ -6,11 +6,12 @@
 #
 # Mirrors snv/annotate_snv.sh + indel/annotate_indel.sh from the
 # reference scripts. Coordinate liftover is bundled in by the upstream
-# coordconv (SNV) or transanno (INDEL) rules; check_homozygous is run
-# after the `other` step to collapse haplotype1/haplotype2 records that
-# lift to the same GRCh38/CHM13 site into `homozygous`. The remaining
-# variant-comparison step (filter_diff_references against GRCh38/CHM13
-# normal call sets) is still deferred.
+# coordconv (SNV) or transanno (INDEL) rules. The reference scripts'
+# check_homozygous step is not run: a somatic mutation is essentially never
+# homozygous, and records that look homozygous are LOH, so collapsing the two
+# haplotypes into one label loses the haplotype assignment for no gain. The
+# variant-comparison step (filter_diff_references against GRCh38/CHM13 normal
+# call sets) is still deferred.
 #
 # Required positional args:
 #   $1  SAMPLE       tumor sample name
@@ -29,7 +30,7 @@
 #   $11 LIFTOFF_GFF  tabix-indexed liftoff GFF (.gff.gz + .tbi)
 #   $12 CGC_TSV
 #   $13 CMRG_TSV
-#   $14 GENCODE_BED
+#   $14 MANE_SUMMARY  MANE summary TSV (MANE.GRCh38.vX.Y.summary.txt.gz)
 #   $15 RMSK_BED
 #   $16 CENSAT_BED
 #   $17 SEGDUP_BED
@@ -58,7 +59,7 @@ SCRIPT_DIR=${10}
 LIFTOFF_GFF=${11:-}
 CGC_TSV=${12:-}
 CMRG_TSV=${13:-}
-GENCODE_BED=${14:-}
+MANE_SUMMARY=${14:-}
 RMSK_BED=${15:-}
 CENSAT_BED=${16:-}
 SEGDUP_BED=${17:-}
@@ -85,23 +86,34 @@ python3 "${SCRIPT_DIR}/add_lift_coords.py" \
     --grch38 "${GRCH38_LIFT}" \
     --chm13 "${CHM13_LIFT}"
 
-# Append fixed-name, empty column(s) to keep the output schema invariant when an
-# optional annotation step is skipped. Downstream consumers (check_homozygous_*.py
-# and the annotated table schema) parse by fixed column position, so every
-# optional column must always be present — empty when its resource is absent.
+# Append fixed-name column(s) filled with the not-evaluated placeholder, to keep
+# the output schema invariant when an optional annotation step is skipped. The
+# annotated table is parsed by fixed column position, so every optional column
+# must always be present.
+#
+# The placeholder is `-`, the same one the annotation steps themselves emit for
+# "looked, found nothing", and the one the SV table uses throughout. It is
+# deliberately not `False`: a skipped step has not ruled anything out.
 # `print $0, ...` leaves $0 untouched, so records on contigs whose names contain
 # '#' (hifiasm HiC) are preserved verbatim.
 append_empty_cols() {  # $1=in  $2=out  $3..=header names
     local in="$1" out="$2"; shift 2
     awk -v names="$*" 'BEGIN{FS=OFS="\t"; n=split(names, a, " ")}
         NR==1 { row=$0; for(i=1;i<=n;i++) row=row OFS a[i]; print row; next }
-              { row=$0; for(i=1;i<=n;i++) row=row OFS "";  print row }' "${in}" > "${out}"
+              { row=$0; for(i=1;i<=n;i++) row=row OFS "-"; print row }' "${in}" > "${out}"
 }
 
 # 1. gene
-if [ -n "${LIFTOFF_GFF}" ] && [ -n "${CGC_TSV}" ] && [ -n "${CMRG_TSV}" ] && [ -n "${GENCODE_BED}" ]; then
+# The liftoff GFF alone is enough to name the gene and its transcripts; the
+# cancer-gene-census, CMRG and MANE tables only refine that annotation, so each
+# is passed only when configured. Without the MANE summary every protein-coding
+# transcript over the site is reported instead of the selected one.
+if [ -n "${LIFTOFF_GFF}" ]; then
     NEXT="${WORK_DIR}/${PREFIX}.gene.txt"
-    ${ADD} gene -i "${CUR}" -o "${NEXT}" -g "${LIFTOFF_GFF}" -c "${CGC_TSV}" -m "${CMRG_TSV}" -t "${GENCODE_BED}"
+    ${ADD} gene -i "${CUR}" -o "${NEXT}" -g "${LIFTOFF_GFF}" \
+        ${CGC_TSV:+-c "${CGC_TSV}"} \
+        ${CMRG_TSV:+-m "${CMRG_TSV}"} \
+        ${MANE_SUMMARY:+-t "${MANE_SUMMARY}"}
     CUR="${NEXT}"
 else
     NEXT="${WORK_DIR}/${PREFIX}.gene.txt"
@@ -170,27 +182,22 @@ else
     CUR="${NEXT}"
 fi
 
-# 8. check_homozygous: collapse haplotype1/haplotype2 pairs that lift to
-#    the same GRCh38 / CHM13 site into `homozygous`. Two-pass when both
-#    chains are configured (GRCh38 update → CHM13 preserve, as in the
-#    reference scripts); one-pass when only one chain is configured;
-#    skipped when neither is configured (the lift columns are blank, so
-#    every row would falsely match).
-CHECK="${SCRIPT_DIR}/check_homozygous_${MODE}.py"
-if [ -n "${GRCH38_LIFT}" ] && [ -n "${CHM13_LIFT}" ]; then
+# 8. check_unassigned: both haplotype contigs can carry the same variant, and
+#    the two records lift to one reference position. Drop the unassigned copy
+#    where a haplotype-assigned record already covers that position; keep both
+#    when both are assigned. Run once per configured reference, and skipped
+#    when neither is configured (with no lifted coordinates every row would
+#    falsely match). This is the deduplication half of the reference scripts'
+#    check_homozygous; the homozygous relabeling half is deliberately gone.
+CHECK="python3 ${SCRIPT_DIR}/check_unassigned.py --mode ${MODE}"
+if [ -n "${GRCH38_LIFT}" ]; then
     NEXT="${WORK_DIR}/${PREFIX}.checked_GRCh38.txt"
-    python3 "${CHECK}" "${CUR}" GRCh38 update > "${NEXT}"
+    ${CHECK} --reference GRCh38 -i "${CUR}" -o "${NEXT}"
     CUR="${NEXT}"
+fi
+if [ -n "${CHM13_LIFT}" ]; then
     NEXT="${WORK_DIR}/${PREFIX}.checked.txt"
-    python3 "${CHECK}" "${CUR}" CHM13 preserve > "${NEXT}"
-    CUR="${NEXT}"
-elif [ -n "${GRCH38_LIFT}" ]; then
-    NEXT="${WORK_DIR}/${PREFIX}.checked.txt"
-    python3 "${CHECK}" "${CUR}" GRCh38 update > "${NEXT}"
-    CUR="${NEXT}"
-elif [ -n "${CHM13_LIFT}" ]; then
-    NEXT="${WORK_DIR}/${PREFIX}.checked.txt"
-    python3 "${CHECK}" "${CUR}" CHM13 update > "${NEXT}"
+    ${CHECK} --reference chm13 -i "${CUR}" -o "${NEXT}"
     CUR="${NEXT}"
 fi
 

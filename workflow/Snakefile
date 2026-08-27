@@ -28,17 +28,17 @@ onstart:
 # failed or interrupted run keeps everything for inspection. `debug: true` in the
 # config (setup_workflow.py --debug) skips the whole step.
 #
-# On H2009 this is ~150 GB: the methylation workspace alone holds an 89 GB
-# filtered BAM, and reference.fa is written once per rule that needs it (5.7 GB
-# x 6). All of it is reproducible from the inputs that remain.
+# The bulk of it is the methylation workspace's filtered BAM and the copy of
+# reference.fa each rule that needs one writes for itself. All of it is
+# reproducible from the inputs that remain.
 _SCRATCH_DIRS = [
     "*/*/workspace",          # copynumber, annotation/<sample>/<step>
     "*/*/*/workspace",        # methylation, annotate_sv, annotate_{snv,indel}
     "*/*/*/*/workspace",
     "*_scatter/*",            # clairs / deepsomatic per-contig scatter
     "bwa_index",
-    # A declared output, unlike everything above it, so removing it does make the
-    # next invocation rebuild it -- 20 s of staging against 2.9 GB kept.
+    # A declared output, unlike everything above it, so removing it does make
+    # the next invocation rebuild it -- seconds of staging, GBs reclaimed.
     "copynumber/reference",
 ]
 
@@ -50,7 +50,7 @@ _SCRATCH_DIRS = [
 # intermediate but it IS declared output and feeds insert_classify, connect and
 # merge, and regenerating it means running nanomonsv postprocess again. The test
 # is what a rebuild costs, not whether a path is declared: copynumber/reference
-# above is declared too and goes, because restaging it takes 20 s.
+# above is declared too and goes, because restaging it is trivial.
 _SCRATCH_FILES = [
     "nanomonsv/*/*.nanomonsv.new_result.txt",
     "nanomonsv/*/*.nanomonsv.result.filt.pass_low_vaf.txt",
@@ -112,9 +112,10 @@ onerror:
 def get_all_targets():
     # Targets are enumerated per available sequencing type so HiFi-only and
     # ONT-only samples work. Per-sample rules (methylation) use the sample's own
-    # seqtypes; tumor/normal callers (nanomonsv, clairs, deepsomatic,
-    # copynumber, SV/mutation annotation) use paired_seqtypes(tumor) — the
-    # seqtypes present for BOTH the tumor and its paired normal.
+    # seqtypes; tumor/normal rules (nanomonsv, SV annotation) use
+    # paired_seqtypes(tumor) — the seqtypes present for BOTH the tumor and its
+    # paired normal. Point-mutation calling narrows that to mutation_seqtypes()
+    # and copy number to primary_paired_seqtype().
     targets = []
     all_samples = list(samples.index.get_level_values("sample"))
 
@@ -150,8 +151,10 @@ def get_all_targets():
                 "annotate_sv/{}/{}/{}.PRCGAP.nanomonsv_results.reclassified.txt".format(tumor, seqtype, tumor))
 
         # point-mutation postprocess leaves + annotation
-        # (per caller × per available seqtype; annotation additionally per mode)
-        for seqtype in seqtypes:
+        # (per caller × per called seqtype; annotation additionally per mode).
+        # mutation_seqtypes(), not the full paired set: calling defaults to the
+        # primary seqtype alone -- see commons.smk.
+        for seqtype in mutation_seqtypes(tumor):
             for tool in mutation_callers():
                 targets.append(
                     "{}_post/{}/{}/{}.haplotyped.bed".format(tool, tumor, seqtype, tumor))

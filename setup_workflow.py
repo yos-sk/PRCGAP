@@ -206,21 +206,15 @@ def _image_path(explicit, images_dir, tool):
 # (module_name, default_threads, default_mem_mb) for each rule whose
 # resources can be overridden from the CLI.
 _RESOURCE_DEFAULTS = [
-    # In-workflow annotation (opt-in via --run-dna-brnn / --run-liftoff /
-    # --run-chain-files).
-    # In-workflow annotation. Every rule is capped at 8 threads. liftoff keeps
-    # the 128 GB assembly_workflow declares for it (unmeasured here, and it did
-    # need that much); make_chain_files runs the same minimap2 asm5 as
-    # copynumber_ref_table, measured at 34.6 GB. dna_brnn is 8 GB against a
-    # measured 4.4 GB -- it only annotates satellite now that ref.table runs
-    # unmasked, so the plot's cen/sat track is its one consumer, and censat_bed
-    # supersedes it there (69 min per haplotype).
-    ("dna_brnn", 8, 8000),   # measured 4.4 GB / 69 min per haplotype
+    # In-workflow annotation (--run-dna-brnn / --run-liftoff /
+    # --run-chain-files / --run-line1 / --run-simple-repeat). liftoff is the
+    # heaviest of these; the rest are modest.
+    ("dna_brnn", 8, 8000),
     ("liftoff_reference", 1, 8000),
-    ("liftoff", 8, 64000),   # measured 36.4 GB rss / 40.4 GB pss (H2009 whole genome)
+    ("liftoff", 8, 80000),
     ("liftoff_merge", 1, 16000),
     ("prepare_mask_regions", 1, 10240),
-    ("make_chain_files", 8, 48000),             # same minimap2 asm5 shape as copynumber_ref_table, 34.6 GB there
+    ("make_chain_files", 8, 48000),
     ("chain_files_merge", 1, 8000),
     # LINE-1 and tandem repeats: both are blastn/ULTRA over one haplotype, far
     # lighter than the RepeatMasker route they replace.
@@ -228,52 +222,46 @@ _RESOURCE_DEFAULTS = [
     ("line1_merge", 1, 8000),
     ("simple_repeat", 8, 32000),
     ("simple_repeat_merge", 1, 8000),
-    ("bam_refiner_kmer", 8, 32000),  # measured 15.2 GB (H2009); HG008 2.3 GB
-    ("bam_refiner", 8, 64000),                  # measured 37.8 GB
+    ("bam_refiner_kmer", 8, 32000),
+    ("bam_refiner", 8, 64000),
     ("assembly_bwa_index", 1, 16000),
-    ("methylation", 8, 32000),                  # measured 13.5 GB
-    ("copynumber", 8, 48000),                   # legacy fallback; matches copynumber_ref_table, the heaviest split rule
-    ("copynumber_reference", 1, 4000),    # measured 0.07 GB
-    ("copynumber_ref_table", 8, 48000),   # minimap2 unmasked: 34.1 GB at 8 threads
+    ("methylation", 8, 32000),
+    ("copynumber", 8, 48000),
+    ("copynumber_reference", 1, 8000),
+    ("copynumber_ref_table", 8, 48000),
     ("copynumber_ref_table_final", 1, 8000),
-    ("copynumber_depth", 4, 8000),        # mosdepth: measured 4.3 GB, flat in threads
-    ("copynumber_segment", 1, 4000),      # measured 188 MB (cbs.R + split_gaps.py)
-    ("copynumber_plot", 1, 4000),         # measured 0.23 GB
-    ("nanomonsv_parse", 8, 16000),              # measured 3.1 GB
-    ("nanomonsv_get", 8, 64000),                # measured 2.2 GB; --max_memory_minimap2 16 caps the aligner
-    ("nanomonsv_postprocess", 1, 8000),         # measured 0.1 GB
-    ("nanomonsv_insert_classify", 8, 64000),    # measured 54.9 GB -- the tightest of these
+    ("copynumber_depth", 4, 16000),
+    ("copynumber_segment", 1, 8000),
+    ("copynumber_plot", 1, 8000),
+    ("nanomonsv_parse", 8, 16000),
+    ("nanomonsv_get", 8, 64000),
+    ("nanomonsv_postprocess", 1, 8000),
+    ("nanomonsv_insert_classify", 8, 64000),
     ("nanomonsv_connect", 1, 30000),
     ("nanomonsv_merge", 1, 30000),
     # Callers are scattered over contig chunks: these are per-chunk resources.
-    # 8 threads / 32000 MB is the benchmarked setting
-    # (plan/mutation_calling_performance.md 6.6).
     #
-    # --num_shards is the rule's thread count, and each shard is a separate
-    # TensorFlow process. Measured on an unbound 192-core host, where every
-    # library sizes itself from the host core count: 8 shards reached >58.5 GB
-    # of address space against a 32 GB s_vmem grant and the process group was
-    # killed with SIGXCPU ~10 s in; 2 shards completed at 31.09 GB, i.e. 3 %
-    # under the same grant. RSS was never the problem -- 18 MB at kill time.
-    # 8 is kept here because profile/sge/cluster.yaml now core-binds every job,
-    # which makes nproc report the allocation rather than 192. Re-measure
-    # maxvmem before trusting this on a scheduler without such binding.
+    # The thread count is also --num_shards, and each shard is a separate
+    # TensorFlow process, so the memory here is bounded by address space rather
+    # than by resident size. It assumes the scheduler binds a job to its
+    # allocated cores; without that, the shards size themselves from the host
+    # core count and need more. Re-check before lowering either number.
     ("clairs", 8, 32000),
     ("clairs_scatter_setup", 8, 16000),
-    ("clairs_chunks", 1, 4000),
+    ("clairs_chunks", 1, 8000),
     ("clairs_merge", 1, 16000),
     ("deepsomatic", 8, 32000),
     ("deepsomatic_scatter_setup", 8, 16000),
-    ("deepsomatic_chunks", 1, 4000),
+    ("deepsomatic_chunks", 1, 8000),
     ("deepsomatic_merge", 1, 16000),
     ("clairs_postprocess", 1, 32000),
     ("clairs_postprocess_split", 1, 32000),
-    ("clairs_postprocess_realign", 8, 16000),  # measured 0.1 GB (bwa on the candidate-flank FASTA)
+    ("clairs_postprocess_realign", 8, 16000),
     ("clairs_postprocess_pileup", 8, 32000),
     ("clairs_postprocess_haplotype", 4, 64000),
     ("deepsomatic_postprocess", 1, 32000),
     ("deepsomatic_postprocess_split", 1, 32000),
-    ("deepsomatic_postprocess_realign", 8, 16000),  # measured 0.1 GB (bwa on the candidate-flank FASTA)
+    ("deepsomatic_postprocess_realign", 8, 16000),
     ("deepsomatic_postprocess_pileup", 8, 32000),
     ("deepsomatic_postprocess_haplotype", 4, 64000),
     ("prep_sv", 1, 8000),
@@ -410,8 +398,6 @@ def create_config(args):
         "hap2_satellite": _abs(args.hap2_satellite) or "",
         "sex": args.sex,
         "simple_repeat": _abs(args.simple_repeat) or "",
-        "gtf_file": _abs(args.gtf_file) or "",
-        "gff_file": _abs(args.gff_file) or "",
         "line1_bed": _abs(args.line1_bed) or "",
         # ---- copy number plot params ----
         "copynumber_binwidth": args.copynumber_binwidth,
@@ -431,6 +417,7 @@ def create_config(args):
         "run_nanomonsv_merge": args.run_nanomonsv_merge,
         # ---- point-mutation caller ----
         "mutation_caller": args.mutation_caller,
+        "mutation_seqtypes": args.mutation_seqtypes,
         "caller_solo_contig_min_bp": args.caller_solo_contig_min_bp,
         "deepsomatic_postprocess_variants_cpus": args.deepsomatic_postprocess_variants_cpus,
         # ---- ClairS platform model ----
@@ -445,13 +432,12 @@ def create_config(args):
         "misassembly_hap2_bed": _abs(args.misassembly_hap2_bed) or "",
         "cancer_gene_census_tsv": _abs(args.cancer_gene_census_tsv) or "",
         "cmrg_gene_tsv": _abs(args.cmrg_gene_list) or "",
-        "gencode_transcript_bed": _abs(args.gencode_transcript_bed) or "",
+        "mane_summary": _abs(args.mane_summary) or "",
         "gnomad_bed": _abs(args.gnomad_bed) or "",
         "gnomad_vcf": _abs(args.gnomad_vcf) or "",
         "grch38_fasta": _abs(args.grch38_fasta) or "",
         # ---- in-workflow annotation (opt-in per step) ----
         "run_dna_brnn": args.run_dna_brnn,
-        "run_liftoff": args.run_liftoff,
         "run_chain_files": args.run_chain_files,
         "run_line1": args.run_line1,
         "run_simple_repeat": args.run_simple_repeat,
@@ -674,7 +660,7 @@ Examples:
     --samplesheet config/samples.tsv \\
     --tumor T --tumor-hifi t.bam --normal N --normal-hifi n.bam \\
     --assembly-hap1 asm/hap1.fa --assembly-hap2 asm/hap2.fa \\
-    --run-dna-brnn --run-liftoff --run-chain-files \\
+    --run-dna-brnn --run-chain-files \\
     --run-line1 --run-simple-repeat \\
     --chm13-fasta        resource/reference/chm13v2.0_maskedY_rCRS.fa \\
     --grch38-fasta       resource/reference/GRCh38.d1.vd1.fa \\
@@ -682,6 +668,7 @@ Examples:
     --grch38-centromeres resource/reference/centromeres.txt.gz \\
     --grch38-exclusions  resource/reference/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed \\
     --chm13-censat       resource/reference/chm13v2.0_censat_v2.1.bed.gz \\
+    --mane-summary       resource/reference/MANE.GRCh38.v1.3.summary.txt.gz \\
     --profile profile/slurm
 
   # 4. Reuse a sheet somebody wrote by hand: pass --samplesheet with no pair
@@ -751,7 +738,7 @@ Examples:
                              "only used with --run-dna-brnn")
     parser.add_argument("--liftoff-image", default=None,
                         help="liftoff + minimap2 + gffread image (default: "
-                             "<images-dir>/liftoff.sif); only used with --run-liftoff")
+                             "<images-dir>/liftoff.sif)")
     parser.add_argument("--chain-files-image", default=None,
                         help="minimap2 + transanno + chaintools + rustybam + "
                              "paf2chain image (default: <images-dir>/chain_files.sif); "
@@ -781,9 +768,6 @@ Examples:
     parser.add_argument("--hap1-satellite", default="")
     parser.add_argument("--hap2-satellite", default="")
     parser.add_argument("--simple-repeat", default="")
-    parser.add_argument("--gtf-file", default="",
-                        help="liftoff GTF (.gtf / .gtf.gz). Consumed by nanomonsv "
-                             "insert_classify only.")
     parser.add_argument("--line1-bed", default="")
 
     # ---------- copy number plot params (all optional) ----------
@@ -812,11 +796,18 @@ Examples:
                              "fills assembly gaps with reference satellite (optional). "
                              "CHM13 chromosome lengths are derived at plot time from "
                              "the --chm13-fasta via chromosome_length.py.")
+    parser.add_argument("--mutation-seqtypes", choices=["primary", "all"],
+                        default="primary",
+                        help="which sequencing types the point-mutation callers "
+                             "run on: 'primary' (default) uses one seqtype, HiFi "
+                             "when both are present; 'all' uses every seqtype "
+                             "available for both tumor and normal. SV and "
+                             "methylation always use every available seqtype.")
     parser.add_argument("--pileup-no-baq", default="true",
                         choices=["true", "false"],
                         help="pass --no-BAQ to samtools mpileup in the "
                              "clairs/deepsomatic pileup step (default: true). "
-                             "true skips BAQ computation, cutting peak RSS ~26x "
+                             "true skips BAQ computation, a large peak-RSS saving "
                              "for long-read/high-depth data; set false to keep BAQ.")
     parser.add_argument("--pileup-max-depth", type=int, default=0,
                         help="samtools mpileup -d/--max-depth for the pileup step "
@@ -880,8 +871,6 @@ Examples:
         "Annotation resources",
         "All optional; leave empty to skip the corresponding annotation step.",
     )
-    ann_group.add_argument("--gff-file", default="",
-                           help="tabix-indexed liftoff GFF (.gff.gz + .tbi). Used by SV / SNV / INDEL gene annotation.")
     ann_group.add_argument("--chain-to-grch38", default="",
                            help="chain file from personalized assembly to GRCh38 (SV liftover flag)")
     ann_group.add_argument("--chain-to-chm13", default="",
@@ -900,16 +889,20 @@ Examples:
                            help="Cancer Gene Census TSV")
     ann_group.add_argument("--cmrg-gene-list", default="",
                            help="CMRG gene list (one HGNC gene symbol per line; SNV/INDEL gene annotation)")
-    ann_group.add_argument("--gencode-transcript-bed", default="",
-                           help="GENCODE transcript BED.gz (SNV/INDEL gene annotation)")
+    ann_group.add_argument("--mane-summary", default="",
+                           help="MANE summary TSV (MANE.GRCh38.vX.Y.summary.txt.gz). "
+                                "Restricts the SNV/INDEL gene annotation to the MANE "
+                                "transcript of each gene; without it every "
+                                "protein-coding transcript over the site is reported. "
+                                "Must be the release matching --grch38-gtf.")
     ann_group.add_argument("--gnomad-bed", default="",
                            help="gnomAD SV BED.gz (requires --chain-to-grch38)")
     ann_group.add_argument("--gnomad-vcf", default="",
                            help="gnomAD SNV/INDEL VCF.gz tabix-indexed (requires --chain-to-grch38)")
     ann_group.add_argument("--grch38-fasta", default="",
                            help="GRCh38 reference FASTA. transanno --query for INDEL "
-                                "liftover, and the source for --run-liftoff / "
-                                "--run-chain-files.")
+                                "liftover, and the source for the liftoff gene "
+                                "annotation and --run-chain-files. Required.")
 
     # ---------- in-workflow annotation generation (opt-in per step) ----------
     gen_group = parser.add_argument_group(
@@ -928,13 +921,6 @@ Examples:
                            help="build the per-haplotype dna-brnn satellite BEDs "
                                 "(supersedes --hap1-satellite / --hap2-satellite); "
                                 "default on, --no-run-dna-brnn to disable")
-    gen_group.add_argument("--run-liftoff", action=argparse.BooleanOptionalAction,
-                           default=False,
-                           help="build the liftoff gene GFF + GTF (supersedes "
-                                "--gff-file / --gtf-file); requires --grch38-fasta "
-                                "and --grch38-gtf; default off (heaviest step: "
-                                "8 threads x 128 GB per haplotype), pass "
-                                "--run-liftoff to enable")
     gen_group.add_argument("--run-chain-files", action=argparse.BooleanOptionalAction,
                            default=True,
                            help="build the assembly → CHM13/GRCh38 chain files "
@@ -957,8 +943,10 @@ Examples:
                                 "--simple-repeat); default on, "
                                 "--no-run-simple-repeat to disable")
     gen_group.add_argument("--grch38-gtf", default="",
-                           help="GRCh38 GTF with chr* contig names (plain .gtf) for "
-                                "--run-liftoff")
+                           help="GRCh38 GTF with chr* contig names (plain .gtf), "
+                                "lifted onto the assembly to give the gene "
+                                "annotation. Required. Its Ensembl release must "
+                                "match --mane-summary.")
     gen_group.add_argument("--grch38-centromeres", default="",
                            help="UCSC hg38 centromeres.txt(.gz) for --run-chain-files")
     gen_group.add_argument("--grch38-exclusions", default="",
@@ -977,7 +965,7 @@ Examples:
                              "it works regardless of the current working directory)")
     parser.add_argument("--targets", nargs="+", default=None,
                         help="snakemake targets to bake into the runner so it builds only "
-                             "those by default (e.g. 'copynumber/HG008T/output'). Targets are "
+                             "those by default (e.g. 'copynumber/<tumor>/output'). Targets are "
                              "relative to --output-dir. Omit to build the full pipeline. "
                              "Targets passed to the runner on the command line still take "
                              "precedence over the baked-in ones.")
@@ -987,8 +975,8 @@ Examples:
                         help="keep the scratch directories a successful run "
                              "would otherwise delete (every workspace/, the "
                              "caller scatter dirs, bwa_index/ and the per-rule "
-                             "copies of reference.fa). On H2009 those come to "
-                             "roughly 150 GB, so they go by default.")
+                             "copies of reference.fa), which are otherwise "
+                             "removed once every target is built.")
 
     # ---------- Executor / container backend ----------
     parser.add_argument("--profile", default=None,
@@ -1007,6 +995,16 @@ Examples:
     config_path = Path(args.output)
     runner_path = Path(args.runner)
     sheet_path = Path(args.samplesheet)
+
+    # The liftoff gene annotation is always built, so its two references are
+    # required rather than optional.
+    missing_refs = [flag for flag, value in (("--grch38-fasta", args.grch38_fasta),
+                                             ("--grch38-gtf", args.grch38_gtf))
+                    if not value]
+    if missing_refs:
+        parser.error(", ".join(missing_refs)
+                     + " is required: the liftoff gene annotation is built from "
+                       "GRCh38 for every run. See resource/scripts/download_reference.sh.")
 
     # Any pair option means the sheet is an output, not an input.
     writes_sheet = any((args.tumor, args.normal, args.assembly_hap1, args.assembly_hap2,

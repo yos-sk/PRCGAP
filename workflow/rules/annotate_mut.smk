@@ -5,9 +5,12 @@
 # Mirrors the per-tool snv/annotate_snv.sh and indel/annotate_indel.sh
 # scripts under PRCGAP-paper/analysis/point_mutation_analysis/scripts/
 # annotation/. The `compare_current_reference` /
-# `filter_diff_references` germline-comparison steps are still deferred;
-# `check_homozygous` (haplotype1/haplotype2 lift-collapse) is run inside
-# annotate_mut.sh. Coordinate annotation is kept:
+# `filter_diff_references` germline-comparison steps are still deferred.
+# `check_homozygous` is replaced by `check_unassigned`: a somatic mutation is
+# essentially never homozygous and what looks homozygous is LOH, so the
+# homozygous relabeling is gone, but its other half -- dropping the unassigned
+# copy of a variant a haplotype-assigned record already covers at the same
+# reference coordinate -- is kept. Coordinate annotation is kept:
 #
 #   prep_mut ──► coordconv (snv) ──┐
 #            └─► bed2vcf ─► transanno_liftvcf (indel) ──┐
@@ -15,8 +18,9 @@
 #                                                       │     (add_lift_coords →
 #                                                       │      gene → rmsk → size →
 #                                                       │      misa → cen → segdup →
-#                                                       │      other → check_homozygous
-#                                                       │      → gnomad)
+#                                                       │      other →
+#                                                       │      check_unassigned →
+#                                                       │      gnomad)
 #
 # coordconv liftover is applied to SNV only — INDEL needs proper
 # VCF-aware liftover that transforms ref/alt alleles, which transanno
@@ -424,7 +428,7 @@ rule annotate_mut_main:
         gff_file=lambda wc: liftoff_gff(wc.tumor),
         cgc=_opt_path("cancer_gene_census_tsv"),
         cmrg=_opt_path("cmrg_gene_tsv"),
-        gencode=_opt_path("gencode_transcript_bed"),
+        mane=_opt_path("mane_summary"),
         rmsk=_opt_path("repeat_masker_bed"),
         censat=_opt_path("censat_bed"),
         segdup=_opt_path("segdup_bed"),
@@ -463,7 +467,7 @@ rule annotate_mut_main:
             "{params.gff_file}" \
             "{params.cgc}" \
             "{params.cmrg}" \
-            "{params.gencode}" \
+            "{params.mane}" \
             "{params.rmsk}" \
             "{params.censat}" \
             "{params.segdup}" \

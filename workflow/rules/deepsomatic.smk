@@ -4,9 +4,8 @@
 #
 # DeepSomatic runs per available sequencing type ({seqtype} = hifi / ont),
 # scattered over contig chunks: every contig >= config["caller_solo_contig_min_bp"]
-# gets its own job and the remaining small contigs share one. 8 threads / 32 GB
-# per chunk is the benchmarked setting; see
-# plan/mutation_calling_performance.md 6.6.
+# gets its own job and the remaining small contigs share one. Per-chunk threads
+# and memory come from config["resources"].
 #
 # --model_type is derived from the seqtype: PACBIO for hifi, ONT for ont.
 
@@ -153,7 +152,8 @@ rule deepsomatic_merge:
     threads:
         get_threads("deepsomatic_merge", 1)
     resources:
-        mem_mb=get_mem_mb("deepsomatic_merge", 16000)
+        mem_mb=get_mem_mb("deepsomatic_merge", 16000),
+        disk_mb=8000,
     log:
         "logs/deepsomatic/{tumor}_{seqtype}_merge.log"
     benchmark:

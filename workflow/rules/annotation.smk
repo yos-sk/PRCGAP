@@ -9,7 +9,7 @@
 #   run_dna_brnn     ──► dna_brnn (per hap)          satellite BED per haplotype
 #                                                    (copynumber masking /
 #                                                     cenSat fallback)
-#   run_liftoff      ──► liftoff_reference
+#   (always)         ──► liftoff_reference
 #                          └► liftoff_hap (per hap) ──► liftoff_merge
 #                                                    gene GFF + GTF
 #                                                    (SV/SNV/INDEL gene
@@ -96,7 +96,7 @@ rule dna_brnn:
 # ====================================================================
 #
 # The reference is staged once (chrY dropped for a female sample) and shared by
-# both haplotype jobs, so the 3 GB filter is not repeated per haplotype.
+# both haplotype jobs, so the filter is not repeated per haplotype.
 
 rule liftoff_reference:
     input:
@@ -145,7 +145,7 @@ rule liftoff_hap:
     threads:
         get_threads("liftoff", 8)
     resources:
-        mem_mb=get_mem_mb("liftoff", 64000)
+        mem_mb=get_mem_mb("liftoff", 96000)
     log:
         "logs/annotation/{asmsrc}_liftoff_{hap}.log"
     benchmark:
@@ -214,8 +214,9 @@ rule prepare_mask_regions:
         grch38_exclusions=config.get("grch38_exclusions", "") or [],
     output:
         # Only the two _masked_reference() will ask for. Both variants used to be
-        # built and the sex picked one pair at use time, leaving the other pair
-        # -- 6 GB on a whole genome -- written and never read.
+        # built and the sex picked one pair at use time, leaving the other
+        # pair -- a second full copy of both references -- written and never
+        # read.
         chm13_masked=_masked_reference("chm13"),
         chm13_masked_fai=_masked_reference("chm13") + ".fai",
         grch38_masked=_masked_reference("GRCh38"),
@@ -319,10 +320,10 @@ rule chain_files_merge:
 #
 # nanomonsv insert_classify needs the source elements a transduction can come
 # from, which is the full-length L1HS / L1PA2-L1PA5 set, not a general L1
-# annotation. Running RepeatMasker for that costs ~240 core-hours per sample;
-# aligning L1.3 and typing the hits with Dfam's subunit models reproduces the
-# same list in about four minutes. See workspace/repeat_bench/README.md,
-# Experiment 8, for the validation and the parameter choices.
+# annotation. RepeatMasker would produce it at a cost of hundreds of core-hours
+# per sample; aligning L1.3 and typing the hits with Dfam's subunit models
+# reproduces the same list in minutes. See resource/line1/README.md for the
+# reference set and how it is built.
 
 # resource/line1 at the repo root, built by resource/scripts/
 # build_line1_resources.sh; workflow.basedir is workflow/.

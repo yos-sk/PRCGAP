@@ -57,7 +57,6 @@ properties:
         type: string
         description: |
           path to singularity image providing liftoff, minimap2 and gffread.
-          Only needed when run_liftoff is true.
       chain_files:
         type: string
         description: |
@@ -375,6 +374,17 @@ properties:
       results (not used in the paper; default false; only runs when both
       seqtypes are present).
 
+  mutation_seqtypes:
+    type: string
+    enum: ["primary", "all"]
+    description: |
+      which sequencing types the point-mutation callers run on. `primary`
+      (default) calls on one seqtype, HiFi when both are present: SNV/INDEL
+      calling is validated on HiFi, and the ONT arm is the more expensive of the
+      two while adding calls without that support. `all` calls on every seqtype
+      available for both tumor and normal. SV (nanomonsv) and methylation always
+      use every available seqtype.
+
   mutation_caller:
     type: string
     description: |
@@ -448,18 +458,6 @@ properties:
     type: string
     description: path to simple repeat regions file
 
-  gtf_file:
-    type: string
-    description: |
-      path to GTF annotation file. Consumed by nanomonsv `insert_classify.py`
-      (which only accepts `.gtf` / `.gtf.gz`). For SV / SNV / INDEL gene
-      annotation use `gff_file` instead.
-  gff_file:
-    type: string
-    description: |
-      path to tabix-indexed liftoff GFF (.gff.gz + .tbi). Consumed by
-      `annotate_sv` and `annotate_mut` for gene annotation. Must already be
-      bgzipped and tabix-indexed (`tabix -p gff`).
 
   line1_bed:
     type: string
@@ -493,9 +491,14 @@ properties:
   cmrg_gene_tsv:
     type: string
     description: CMRG gene list TSV (SNV/INDEL gene annotation)
-  gencode_transcript_bed:
+  mane_summary:
     type: string
-    description: GENCODE transcript BED.gz (SNV/INDEL gene annotation)
+    description: |
+      MANE summary TSV (MANE.GRCh38.vX.Y.summary.txt.gz). Restricts the
+      SNV/INDEL gene annotation to each gene's MANE transcript; leave empty to
+      report every protein-coding transcript over the site. Read by column name
+      (symbol / Ensembl_Gene / Ensembl_nuc), and the Ensembl IDs are matched
+      with their version, so the release must match grch38_gtf.
   gnomad_bed:
     type: string
     description: gnomAD SV BED.gz (optional SV annotation; requires chain_to_grch38)
@@ -506,26 +509,19 @@ properties:
     type: string
     description: |
       GRCh38 reference FASTA. Used as transanno `--query` for INDEL liftover,
-      and as the liftoff / chain-file source when run_liftoff or
-      run_chain_files is enabled.
+      as the liftoff source (always), and as the chain-file source when
+      run_chain_files is enabled. Required.
 
   # ---- in-workflow annotation (opt-in per step) ----
   # When a switch is on, PRCGAP builds that annotation from the assembly and the
   # references, and the generated path takes precedence over the corresponding
-  # config key (hap{1,2}_satellite / gff_file+gtf_file / chain_to_*), which may
-  # then be left empty.
+  # config key (hap{1,2}_satellite / chain_to_*), which may then be left empty.
+  # The liftoff gene annotation has no switch: it is always built here.
   run_dna_brnn:
     type: boolean
     description: |
       build the per-haplotype dna-brnn satellite BEDs (supersedes
       hap1_satellite / hap2_satellite). Default true.
-  run_liftoff:
-    type: boolean
-    description: |
-      build the liftoff gene GFF + GTF (supersedes gff_file / gtf_file).
-      Requires grch38_fasta and grch38_gtf. Default false — this is the
-      heaviest annotation step (16 threads x 128 GB per haplotype), so it is
-      opt-in; leave it off to supply gff_file / gtf_file instead.
   run_line1:
     type: boolean
     description: |
@@ -555,7 +551,8 @@ properties:
     type: string
     description: |
       GRCh38 GTF with chr* contig names (plain .gtf), lifted onto the assembly
-      by the liftoff rule. Required when run_liftoff is true.
+      by the liftoff rule. Required. Its Ensembl release must match
+      mane_summary.
   grch38_centromeres:
     type: string
     description: |

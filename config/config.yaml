@@ -28,7 +28,7 @@ singularity_images:
   point_mutation_postprocess: ""
   annotation: ""
   dna_nn: ""                # only needed when run_dna_brnn: true
-  liftoff: ""               # only needed when run_liftoff: true
+  liftoff: ""
   chain_files: ""           # only needed when run_chain_files: true
 
 # ---- per-rule resources (threads / mem_mb) ----
@@ -42,7 +42,7 @@ resources:
     mem_mb: 8000
   liftoff:
     threads: 8
-    mem_mb: 64000
+    mem_mb: 96000
   liftoff_merge:
     threads: 1
     mem_mb: 16000
@@ -202,7 +202,6 @@ hap1_satellite: ""
 hap2_satellite: ""
 sex: female            # one of: "female" | "male"
 simple_repeat: ""      # superseded when run_simple_repeat: true
-gtf_file: ""           # liftoff GTF for nanomonsv insert_classify
 line1_bed: ""          # superseded when run_line1: true
 simple_repeat_min_copies: 4   # min repeat copies to keep when run_simple_repeat: true
 
@@ -231,13 +230,19 @@ caller_solo_contig_min_bp: 1000000
 # and ignores --num_shards / the scheduler allocation.
 deepsomatic_postprocess_variants_cpus: 1
 
-pileup_no_baq: 'true'            # --no-BAQ in the pileup step (cuts peak RSS ~26x; 'false' = keep BAQ)
+pileup_no_baq: 'true'            # --no-BAQ in the pileup step (large peak-RSS saving; 'false' = keep BAQ)
 pileup_max_depth: 0              # samtools mpileup -d (0 = samtools default 8000)
 pileup_num_chunks: 16           # target max pileup chunks (contigs packed into balanced, -r-seekable chunks)
 
 # ---- optional nanomonsv steps (not used in the paper) ----
 run_nanomonsv_connect: false     # nanomonsv connect
 run_nanomonsv_merge: false       # combine HiFi+ONT results (only runs when both seqtypes are present)
+
+# Which sequencing types the point-mutation callers run on.
+#   primary  one seqtype only, HiFi when both are present (default)
+#   all      every seqtype available for both tumor and normal
+# SV (nanomonsv) and methylation always use every available seqtype.
+mutation_seqtypes: primary
 
 # ---- in-workflow annotation (opt-in per step) ----
 # Turn a switch on and PRCGAP builds that annotation from the assembly plus the
@@ -247,9 +252,7 @@ run_nanomonsv_merge: false       # combine HiFi+ONT results (only runs when both
 run_dna_brnn: true             # → hap1_satellite / hap2_satellite
                                #   only consumer is the copy-number plot's cen/sat
                                #   track, so setting censat_bed turns this off
-                               #   regardless (69 min per haplotype)
-run_liftoff: false             # → gff_file / gtf_file      (needs grch38_fasta, grch38_gtf)
-                               #   opt-in: heaviest step (8 threads x 128 GB per hap)
+                               #   regardless
 run_line1: true                # → line1_bed      (no extra reference needed)
                                #   full-length young L1 for nanomonsv insert_classify
 run_simple_repeat: true        # → simple_repeat  (no extra reference needed)
@@ -258,13 +261,15 @@ run_chain_files: true          # → chain_to_chm13 / chain_to_grch38
                                #   (needs chm13_fasta, grch38_fasta, chm13_censat,
                                #    grch38_centromeres, grch38_exclusions)
 
+# The liftoff gene annotation has no switch: it is always built here, so
+# grch38_fasta and grch38_gtf are required.
+#
 # Reference inputs for the steps above; see resource/scripts/download_reference.sh.
 grch38_gtf: ""                 # GRCh38 GTF with chr* contig names (plain .gtf)
 grch38_centromeres: ""         # UCSC hg38 centromeres.txt(.gz)
 grch38_exclusions: ""          # GRC exclusion regions BED
 
 # ---- annotation resources (set to "" to skip the corresponding step) ----
-gff_file: ""                   # tabix-indexed liftoff GFF for SV/SNV/INDEL gene annotation
 chain_to_grch38: ""
 chain_to_chm13: ""
 repeat_masker_bed: ""
@@ -274,7 +279,8 @@ misassembly_hap1_bed: ""
 misassembly_hap2_bed: ""
 cancer_gene_census_tsv: ""
 cmrg_gene_tsv: ""
-gencode_transcript_bed: ""
+mane_summary: ""                # MANE.GRCh38.vX.Y.summary.txt.gz; restricts the
+                                #  SNV/INDEL gene annotation to MANE transcripts
 gnomad_bed: ""
 gnomad_vcf: ""
 grch38_fasta: ""

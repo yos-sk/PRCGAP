@@ -48,18 +48,16 @@ def _nanomonsv_other_param(wildcards):
 #   SV       → `liftoff.bed.gz` (4-col-ish BED indexed with `tabix -p bed`)
 #   SNV/INDEL → `liftoff.gff.gz` (full GFF indexed with `tabix -p gff`)
 #
-# The GFF is either supplied by the user (`gff_file`) or built by the
-# workflow's own liftoff rule (`run_liftoff`); either way the SV BED is
-# derived on the fly using the awk pipeline from PRCGAP-paper's assembly
+# The GFF comes from the workflow's own liftoff rule; the SV BED is derived
+# from it on the fly using the awk pipeline from PRCGAP-paper's assembly
 # annotation step:
 #   gene rows → drop pseudogenes → require gene_name → strip quotes/semis
 #   → 7-col BED (chr, start-1, end, gene_name, strand, gene_id,
 #   gene_biotype)
 # Then sort + bgzip + `tabix -p bed`.
 #
-# The BED is keyed on the assembly source sample so a workflow-generated,
-# per-assembly GFF stays distinguishable; with a config-supplied GFF the
-# samples sharing an assembly simply produce identical copies.
+# The BED is keyed on the assembly source sample, so samples sharing an
+# assembly share one BED.
 # ====================================================================
 
 def _liftoff_gene_bed(src):
@@ -67,13 +65,11 @@ def _liftoff_gene_bed(src):
 
 
 def _liftoff_bed_input(wildcards):
-    src = annotation_src(wildcards.tumor)
-    return [_liftoff_gene_bed(src)] if liftoff_gff_src(src) else []
+    return [_liftoff_gene_bed(annotation_src(wildcards.tumor))]
 
 
 def _liftoff_bed_param(wildcards):
-    src = annotation_src(wildcards.tumor)
-    return _liftoff_gene_bed(src) if liftoff_gff_src(src) else ""
+    return _liftoff_gene_bed(annotation_src(wildcards.tumor))
 
 
 rule gff_to_bed:

@@ -4,8 +4,8 @@
 #
 # ClairS runs per available sequencing type ({seqtype} = hifi / ont), scattered
 # over contig chunks: every contig >= config["caller_solo_contig_min_bp"] gets its own
-# job and the remaining small contigs share one. 8 threads / 32 GB per chunk is
-# the benchmarked setting; see plan/mutation_calling_performance.md 6.6.
+# job and the remaining small contigs share one. Per-chunk threads and memory
+# come from config["resources"].
 #
 # The per-seqtype tumor/normal BAMs come from bam_refiner. The ClairS platform
 # model is selected via config["clairs_model"] (default hifi_sequel2); valid
@@ -153,7 +153,8 @@ rule clairs_merge:
     threads:
         get_threads("clairs_merge", 1)
     resources:
-        mem_mb=get_mem_mb("clairs_merge", 16000)
+        mem_mb=get_mem_mb("clairs_merge", 16000),
+        disk_mb=8000,
     log:
         "logs/clairs/{tumor}_{seqtype}_merge.log"
     benchmark:
