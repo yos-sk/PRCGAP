@@ -17,5 +17,13 @@ output layout, and container images — is available in the online documentation
 
 📖 **[Full documentation](https://yos-sk.github.io/prcgapdoc)**
 
+- 🚀 **[Quick start](https://yos-sk.github.io/prcgapdoc/QuickStart)** — install the
+  container images, fetch the references and configure a first run
+- 🧬 **[Example](https://yos-sk.github.io/prcgapdoc/Example)** — an end-to-end walk
+  through a public tumor/normal sample, from cloning the repository to reading the
+  copy-number, SV, SNV and indel callsets
+- ⚙️ **[Options](https://yos-sk.github.io/prcgapdoc/Options)** — every
+  `setup_workflow.py` flag and config key
+
 ## Citation
 Sakamoto Y, Ochi Y, Kogure Y, Kato S, Sato-Otsubo A, Sugawa M, Tanaka Y, Tsujimura T, Mikami T, Nagae G, Chiba K, Okada A, Ito Y, Suzuki H, Aburatani H, Koga Y, Kato I, Takita J, Mano H, Ogawa S, Kataoka K, Kato M, Shiraishi Y. Personalized reference genome-based pipeline reveals comprehensive haplotype-resolved views of cancer genomes. bioRxiv. 2026. doi: 10.64898/2026.05.28.728591
