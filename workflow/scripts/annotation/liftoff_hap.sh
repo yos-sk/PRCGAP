@@ -31,6 +31,10 @@ WORK_DIR="$(dirname "${OUT_GFF}")/${HAP}"
 rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}"
 
+
+LIFTOFF_PYSITE="$(cd "$(dirname "$(readlink -f "$0")")/liftoff_pysite" && pwd)"
+export PYTHONPATH="${LIFTOFF_PYSITE}${PYTHONPATH:+:${PYTHONPATH}}"
+
 liftoff \
     -g "${GRCH38_GTF}" \
     -o "${OUT_GFF}" \
