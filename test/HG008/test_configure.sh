@@ -22,21 +22,26 @@
 # Point-mutation calling runs on HiFi only (mutation_seqtypes defaults to
 # `primary`). Pass --mutation-seqtypes all to call on ONT as well.
 #
-# Prerequisites, produced by the helpers under resources/scripts/ and
-# ../../resource/scripts/:
-#   - bash resources/scripts/download_data.sh
-#       resources/reads/{hifi,ont}/HG008{T,N}.chr20.{hifi,ont}.bam
-#       resources/asm/HG008N.hap{1,2}.chr20.fa
-#   - bash resources/scripts/download_annotation.sh
-#       resources/annotation/cmrg_genes.list
-#       resources/annotation/gnomad.v4.1.sv.sites.bed.gz{,.tbi}
-#       resources/annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz{,.tbi}
-#   - bash ../../resource/scripts/download_reference.sh
-#       ../../resource/reference/MANE.GRCh38.v1.3.summary.txt.gz
-#   - bash resources/scripts/extract_chr20_reference.sh
-#       resources/reference/{chm13v2.0_maskedY_rCRS,GRCh38.d1.vd1}.fa{,.fai}
-#       resources/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf
-#   - ../../images/*.sif singularity images pre-staged (see images/pull_images.sh)
+# Prerequisites. References are downloaded once for the whole repository and cut
+# down here; everything else is specific to this test case.
+#
+#   1. bash ../../resource/scripts/download_reference.sh
+#        ../../resource/reference/{chm13v2.0_maskedY_rCRS,GRCh38.d1.vd1}.fa{,.fai}
+#        ../../resource/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf
+#        ../../resource/reference/{centromeres.txt.gz,chm13v2.0_censat_v2.1.bed.gz}
+#        ../../resource/reference/GCA_000001405.15_GRCh38_GRC_exclusions_T2Tv2.bed
+#        ../../resource/reference/MANE.GRCh38.v1.3.summary.txt.gz   (read directly)
+#   2. bash resources/scripts/extract_chr20_reference.sh
+#        resources/reference/*_chr20.*   -- the chr20 cut of the above; the _chr20
+#        suffix keeps a cut from being mistaken for the genome-wide original
+#   3. bash resources/scripts/download_data.sh
+#        resources/reads/{hifi,ont}/HG008{T,N}.chr20.{hifi,ont}.bam
+#        resources/asm/HG008N.hap{1,2}.chr20.fa
+#   4. bash resources/scripts/download_annotation.sh
+#        resources/annotation/cmrg_genes.list
+#        resources/annotation/gnomad.v4.1.sv.sites.bed.gz{,.tbi}
+#        resources/annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz{,.tbi}
+#   5. ../../images/*.sif singularity images pre-staged (see images/pull_images.sh)
 #
 # One prerequisite has no helper script: resources/annotation/cancer_gene_census.tsv
 # requires a COSMIC login. Drop --cancer-gene-census-tsv to run without it; the
@@ -76,10 +81,10 @@ python3 ../../setup_workflow.py \
     --mutation-caller "${MUTATION_CALLER}" \
     --no-run-dna-brnn --no-run-chain-files \
     --no-run-line1 --no-run-simple-repeat \
-    --chm13-fasta            resources/reference/chm13v2.0_maskedY_rCRS.fa \
-    --grch38-fasta           resources/reference/GRCh38.d1.vd1.fa \
-    --grch38-gtf             resources/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format.gtf \
-    --chm13-censat           resources/reference/chm13v2.0_censat_v2.1.bed.gz \
+    --chm13-fasta            resources/reference/chm13v2.0_maskedY_rCRS_chr20.fa \
+    --grch38-fasta           resources/reference/GRCh38.d1.vd1_chr20.fa \
+    --grch38-gtf             resources/reference/Homo_sapiens.GRCh38.Ensembl.112.chr.format_chr20.gtf \
+    --chm13-censat           resources/reference/chm13v2.0_censat_v2.1_chr20.bed.gz \
     --mane-summary           ../../resource/reference/MANE.GRCh38.v1.3.summary.txt.gz \
     --hap1-satellite         resources/annotation/HG008N.hap1_dna-brnn.bed.gz \
     --hap2-satellite         resources/annotation/HG008N.hap2_dna-brnn.bed.gz \

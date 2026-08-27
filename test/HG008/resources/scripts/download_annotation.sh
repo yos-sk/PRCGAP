@@ -16,9 +16,6 @@ tabix -p bed ../annotation/gnomad.v4.1.sv.sites.bed.gz
 wget -q https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1/vcf/genomes/gnomad.genomes.v4.1.sites.chr20.vcf.bgz -O ../annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz
 wget -q https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1/vcf/genomes/gnomad.genomes.v4.1.sites.chr20.vcf.bgz.tbi -O ../annotation/gnomad.genomes.v4.1.sites.chr20.vcf.bgz.tbi
 
-# GENCODE v4.6 with MANE v1.3
-wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/gencode.v46.basic.annotation.gff3.gz
-wget https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.3/MANE.GRCh38.v1.3.summary.txt.gz
-python3 proc_gencode_bed_mane_chr20.py gencode.v46.basic.annotation.gff3.gz MANE.GRCh38.v1.3.summary.txt.gz ../annotation/gencode.v46.basic.annotation.chr20.mane
-gzip ../annotation/gencode.v46.basic.annotation.chr20.mane.transcript.bed
-rm gencode.v46.basic.annotation.gff3.gz MANE.GRCh38.v1.3.summary.txt.gz
+# The MANE summary is a reference, not a test fixture: it is downloaded once by
+# ../../../../resource/scripts/download_reference.sh and read from there, so the
+# GENCODE-derived transcript BED this script used to build is no longer needed.
