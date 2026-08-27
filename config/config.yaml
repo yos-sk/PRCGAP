@@ -42,7 +42,7 @@ resources:
     mem_mb: 8000
   liftoff:
     threads: 8
-    mem_mb: 96000
+    mem_mb: 80000
   liftoff_merge:
     threads: 1
     mem_mb: 16000
