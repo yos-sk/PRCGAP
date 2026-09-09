@@ -9,6 +9,8 @@ SAMPLE=$1
 OUTPUT_DIR=$2
 BAM_FILE=$3
 SCRIPT_DIR=$4
+HAP1_LIST=$5
+HAP2_LIST=$6
 
 REFERENCE=${OUTPUT_DIR}/reference.fa
 
@@ -38,6 +40,8 @@ nanomonsv_postprocess realignment \
     -b ${BAM_FILE} \
     -d 98 \
     -l 160 \
+    --hap1-list "${HAP1_LIST}" \
+    --hap2-list "${HAP2_LIST}" \
     1>${OUTPUT_DIR}/${SAMPLE}.nanomonsv.group_info.txt 2>${OUTPUT_DIR}/${SAMPLE}.nanomonsv.pair_info.txt
 
 
