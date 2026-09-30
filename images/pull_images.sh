@@ -23,11 +23,11 @@ set -euo pipefail
 # Stored as a plain array of "key uri" strings (not declare -A) so the script
 # also runs under the bash 3.2 shipped on macOS.
 declare -a IMAGES=(
-    "bam_refiner                 docker://yosakam2/bam_refiner:v0.4.0"
+    "bam_refiner                 docker://yosakam2/bam_refiner:v0.4.1"
     "methylation                 docker://yosakam2/methylation:v0.1.0"
     "copynumber                  docker://yosakam2/copynumber:v0.3.0"
     "nanomonsv                   docker://yosakam2/nanomonsv:v0.8.0"
-    "nanomonsv_postprocess       docker://yosakam2/nanomonsv_postprocess:v0.2.6"
+    "nanomonsv_postprocess       docker://yosakam2/nanomonsv_postprocess:v0.2.7"
     "clairs                      docker://yosakam2/clairs:v0.4.0"
     "deepsomatic                 docker://yosakam2/deepsomatic:v1.8.0"
     "point_mutation_postprocess  docker://yosakam2/mutation_postprocess:v0.1.3"
