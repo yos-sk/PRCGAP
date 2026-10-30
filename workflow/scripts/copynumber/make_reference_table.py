@@ -15,6 +15,8 @@ so non-adjacent rows of the same chromosome would both start at window index 0.
 Stages:
   1+2 per (chrom, strand), the matched-weighted best chain, gated by a seed
   3   merge chains of one chromosome across gaps up to --merge-gap
+  3b  cut a chain where chm13 jumps more than the contig does, and drop the
+      pieces whose contig sequence is already placed (--max-ref-jump-excess)
   4   drop chains below --min-density, and below --min-ref-density on the
       chm13 side
   5   two chromosomes overlapping in contig coordinates claim one physical
@@ -360,18 +362,85 @@ def consolidate_same_contig(chains, merge_gap):
     return chains
 
 
+def _union(intervals):
+    out = []
+    for s, e in sorted(intervals):
+        if out and s <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], e)
+        else:
+            out.append([s, e])
+    return out
+
+
+def split_ref_jumps(chains, max_jump_excess, seed_mapq, seed_alnlen):
+    """Stage 3b. Walk a chain's members in chm13 order and cut it wherever chm13
+    jumps more than max_jump_excess beyond the contig jump between the two
+    members. Without the cut, a few far hits (a segmental-duplication paralog, a
+    satellite cross-hit) stretch the row's chm13 interval over a centromere the
+    contig does not carry, and stage 8 then drops the contig that does carry it
+    as contained in the stretched row. A satellite the contig does carry keeps
+    chm13 and contig jumps in step, so it is not cut, even where its matched
+    density is low.
+
+    The block with the most matched bases stays. Another block stays as its own
+    chain unless more than half of its aligned contig bases are aligned in a
+    kept block as well, i.e. it is a second placement of sequence already placed.
+    Stage 7 decides whether the kept blocks of one chromosome form one row or
+    several (see build_rows)."""
+    if max_jump_excess <= 0:
+        return chains, []
+    out, log = [], []
+    for c in chains:
+        members = sorted(c["members"], key=lambda r: r["tstart"])
+        blocks = [[members[0]]]
+        tend = members[0]["tend"]
+        for r in members[1:]:
+            tgap = max(0, r["tstart"] - tend)
+            qgap = min(max(0, max(r["qstart"], b["qstart"]) - min(r["qend"], b["qend"]))
+                       for b in blocks[-1])
+            if tgap - qgap > max_jump_excess:
+                blocks.append([r])
+            else:
+                blocks[-1].append(r)
+            tend = max(tend, r["tend"])
+        if len(blocks) == 1:
+            out.append(c)
+            continue
+        blocks.sort(key=lambda b: -sum(r["matched"] for r in b))
+        kept = [blocks[0]]
+        for b in blocks[1:]:
+            mine = _union([(r["qstart"], r["qend"]) for r in b])
+            placed = _union([(r["qstart"], r["qend"]) for k in kept for r in k])
+            shared = sum(max(0, min(e1, e2) - max(s1, s2)) for s1, e1 in mine for s2, e2 in placed)
+            if shared > 0.5 * sum(e - s for s, e in mine):
+                log.append((c["tname"], "drop", b))
+                continue
+            kept.append(b)
+        pieces = [chain_from_members(c["tname"], _majority_strand(b), b,
+                                     c["truncated_left"], c["truncated_right"]) for b in kept]
+        pieces = [p for p in pieces if has_seed(p["members"], seed_mapq, seed_alnlen)]
+        log.append((c["tname"], "split", (c, pieces)))
+        out.extend(pieces)
+    out.sort(key=lambda c: c["qstart"])
+    return out, log
+
+
 def run_pipeline_one_contig(rows, min_mapq, seed_mapq, seed_alnlen, min_density,
-                            merge_gap, win_ratio, min_ref_density):
+                            merge_gap, win_ratio, min_ref_density, max_jump_excess):
     chains = build_group_chains(rows, min_mapq, seed_mapq, seed_alnlen)
     chains = apply_density_cutoff(chains, min_density)
     chains = resolve_cross_contig_overlaps(chains, seed_mapq, seed_alnlen, min_density, win_ratio)
     chains = consolidate_same_contig(chains, merge_gap)
+    chains, split_log = split_ref_jumps(chains, max_jump_excess, seed_mapq, seed_alnlen)
     chains, ref_dropped = apply_ref_density_cutoff(chains, min_ref_density)
-    return chains, ref_dropped
+    return chains, ref_dropped, split_log
 
 
 # ------------------------------------------------------------------------ stage 7
 ACRO = {"chr13", "chr14", "chr15", "chr21", "chr22"}
+# Stage 7: contig envelopes of two pieces of one chromosome may overlap this much
+# (alignment ends) and still count as disjoint
+QOVERLAP_TOLERANCE = 100_000
 
 
 def load_censat(path):
@@ -406,13 +475,20 @@ def censat_overlap(chrom, s, e, censat):
     return tot
 
 
-def resolve_contig_chromosomes(chains, censat, split_min):
+def resolve_contig_chromosomes(chains, censat, split_min, max_jump_excess=0, seed_mapq=50, seed_alnlen=10000):
     """Stages 1-5 still report >=2 chromosomes for ~12% of contigs, nearly all
     acrocentric short-arm homology rather than chimerism. A chromosome counts as
     real when its chm13 span, minus the censat part for acrocentrics, clears
     split_min. None significant -> the largest raw span, so a pure-satellite
     contig is still placed; one -> that chromosome; two or more -> a real
-    chimera, one row each."""
+    chimera, one row each.
+
+    The chains of one chromosome are joined and cut again at chm13 jumps as in
+    stage 3b, so non-satellite chm13 sequence that the contig does not carry (a
+    deletion in the assembled genome) stays a gap between two rows of the contig.
+    Folded into one row, the deficit would instead shorten the chromosome and
+    read as an unassembled terminal stretch. Satellite jumps stay inside one row
+    (build_rows)."""
     by_chrom = defaultdict(list)
     for c in chains:
         by_chrom[c["tname"]].append(c)
@@ -426,15 +502,36 @@ def resolve_contig_chromosomes(chains, censat, split_min):
 
     sig = [c for c, b in blocks.items() if b["eff"] >= split_min]
 
-    def build_row(chrom):
+    def build_rows(chrom):
         b = blocks[chrom]
-        return chain_from_members(chrom, _majority_strand(b["members"]), b["members"])
+        row = chain_from_members(chrom, _majority_strand(b["members"]), b["members"])
+        pieces, _ = split_ref_jumps([row], max_jump_excess, seed_mapq, seed_alnlen)
+        # Pieces stay joined (as before stage 3b) when their contig envelopes overlap,
+        # since scattered satellite hits would otherwise draw the same contig sequence
+        # in two rows, and when the chm13 stretch between them is mostly censat, since
+        # a contig carrying a shorter satellite array than chm13 is assembled through
+        # it, not missing it. What remains is a deletion of non-satellite sequence.
+        groups = []
+        for p in sorted(pieces, key=lambda p: p["tstart"]):
+            if groups:
+                g = groups[-1]
+                q_overlap = min(max(x["qend"] for x in g), p["qend"]) - max(min(x["qstart"] for x in g), p["qstart"])
+                t_lo, t_hi = max(x["tend"] for x in g), p["tstart"]
+                sat = censat_overlap(chrom, t_lo, t_hi, censat) / (t_hi - t_lo) if t_hi > t_lo else 1.0
+                if q_overlap > QOVERLAP_TOLERANCE or sat > 0.5:
+                    g.append(p)
+                    continue
+            groups.append([p])
+        if len(groups) == 1:
+            return [row]
+        return [chain_from_members(chrom, _majority_strand([m for p in g for m in p["members"]]),
+                                   [m for p in g for m in p["members"]]) for g in groups]
 
     if not sig:
-        return [build_row(max(blocks, key=lambda c: blocks[c]["ref_span"]))]
+        return build_rows(max(blocks, key=lambda c: blocks[c]["ref_span"]))
     if len(sig) == 1:
-        return [build_row(sig[0])]
-    return sorted((build_row(c) for c in sig), key=lambda r: r["qstart"])
+        return build_rows(sig[0])
+    return sorted((r for c in sig for r in build_rows(c)), key=lambda r: r["qstart"])
 
 
 # ------------------------------------------------------------------------ stage 9
@@ -706,6 +803,9 @@ def main():
     ap.add_argument("--min-ref-density", type=float, default=0.02,
                      help="stage 4 cutoff on the chm13 side (0 = off)")
     ap.add_argument("--merge-gap", type=int, default=1_000_000)
+    ap.add_argument("--max-ref-jump-excess", type=int, default=2_000_000,
+                     help="stages 3b and 7: cut a chain where chm13 jumps this much more than "
+                          "the contig between consecutive members (0 = off)")
     ap.add_argument("--split-min", type=int, default=1_000_000,
                      help="stage 7: censat-adjusted span a chromosome needs to count as real")
     ap.add_argument("--overlap-win-density-ratio", type=float, default=2.0,
@@ -730,16 +830,27 @@ def main():
     out_rows = []
     for contig in sorted(by_contig):
         contig_rows = by_contig[contig]
-        chains, ref_dropped = run_pipeline_one_contig(
+        chains, ref_dropped, split_log = run_pipeline_one_contig(
             contig_rows, args.min_mapq, args.seed_mapq, args.seed_alnlen,
             args.min_density, args.merge_gap, args.overlap_win_ratio,
-            args.min_ref_density)
+            args.min_ref_density, args.max_ref_jump_excess)
+        for tname, what, item in split_log:
+            if what == "drop":
+                print(f"[stage3b] {contig} {tname}: dropped contig "
+                      f"{min(r['qstart'] for r in item):,}-{max(r['qend'] for r in item):,} -> chm13 "
+                      f"{min(r['tstart'] for r in item):,}-{max(r['tend'] for r in item):,}, "
+                      f"its contig sequence is already placed", file=sys.stderr)
+            else:
+                before, pieces = item
+                print(f"[stage3b] {contig} {tname}: chm13 {before['tstart']:,}-{before['tend']:,} -> " +
+                      ", ".join(f"{p['tstart']:,}-{p['tend']:,}" for p in pieces), file=sys.stderr)
         for c in ref_dropped:
             print(f"[stage4b] dropped {contig} on {c['tname']}: contig {c['qend']-c['qstart']:,} bp "
                   f"claims ref {c['tend']-c['tstart']:,} bp, ref-side density {ref_density(c):.5f} "
                   f"< {args.min_ref_density}", file=sys.stderr)
         if chains:
-            chains = resolve_contig_chromosomes(chains, censat, args.split_min)
+            chains = resolve_contig_chromosomes(chains, censat, args.split_min, args.max_ref_jump_excess,
+                                                args.seed_mapq, args.seed_alnlen)
         for c in chains:
             out_rows.append([contig, c["qstart"], c["qend"], c["strand"],
                              c["tname"], c["tstart"], c["tend"], c["matched"]])
