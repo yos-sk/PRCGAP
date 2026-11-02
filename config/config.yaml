@@ -240,9 +240,18 @@ run_nanomonsv_merge: false       # combine HiFi+ONT results (only runs when both
 
 # Which sequencing types the point-mutation callers run on.
 #   primary  one seqtype only, HiFi when both are present (default)
+#   hifi     HiFi only        ont   ONT only
 #   all      every seqtype available for both tumor and normal
 # SV (nanomonsv) and methylation always use every available seqtype.
 mutation_seqtypes: primary
+
+# ClairS --platform per seqtype; required for each seqtype ClairS runs on
+# (mutation_caller clairs/both). No default: pick the one matching your data.
+#   HiFi: hifi_sequel2 | hifi_revio
+#   ONT : ont_r10_dorado_sup_5khz_ssrs | ont_r10_dorado_sup_5khz_ss | ont_r10_dorado_sup_4khz
+#         ont_r10_dorado_hac_5khz | ont_r10_dorado_hac_4khz | ont_r10_guppy | ont_r9_guppy (R9.4.1)
+clairs_platform_hifi: ""
+clairs_platform_ont: ""
 
 # ---- in-workflow annotation (opt-in per step) ----
 # Turn a switch on and PRCGAP builds that annotation from the assembly plus the

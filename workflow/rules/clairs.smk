@@ -7,10 +7,11 @@
 # job and the remaining small contigs share one. Per-chunk threads and memory
 # come from config["resources"].
 #
-# The per-seqtype tumor/normal BAMs come from bam_refiner. The ClairS platform
-# model is selected via config["clairs_model"] (default hifi_sequel2); valid
-# values: hifi_sequel2, hifi_revio, ont_r10_dorado_sup_5khz_ssrs,
-# ont_r10_dorado_sup_4khz.
+# The per-seqtype tumor/normal BAMs come from bam_refiner. The ClairS --platform
+# is set per seqtype (config clairs_platform_hifi / clairs_platform_ont, no
+# default; see clairs_platform() in commons.smk), since the model depends on the
+# instrument (hifi_sequel2 / hifi_revio) and ONT chemistry/basecaller
+# (ont_r9_guppy, ont_r10_guppy, ont_r10_dorado_{sup,hac}_{5khz,4khz}, ...).
 
 rule clairs_scatter_setup:
     input:
@@ -101,7 +102,7 @@ rule clairs_chunk:
     params:
         output_dir="clairs_scatter/{tumor}/{seqtype}/out/{chunk}",
         ctg_file="clairs_scatter/{tumor}/{seqtype}/chunks/{chunk}.ctg",
-        model=config.get("clairs_model", "hifi_sequel2"),
+        model=lambda wc: clairs_platform(wc.seqtype),
     wildcard_constraints:
         seqtype="hifi|ont",
         chunk=r"\d+",

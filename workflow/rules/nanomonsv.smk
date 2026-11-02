@@ -176,6 +176,8 @@ rule nanomonsv_postprocess_hifi:
     input:
         result="nanomonsv/hifi/{tumor}.nanomonsv.result.txt",
         bam=lambda wc: "bam_refiner/{}/hifi/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
+        hap1_list=lambda wc: "bam_refiner/{}/kmer/hap1_list.txt.gz".format(get_kmer_source(wc.tumor)),
+        hap2_list=lambda wc: "bam_refiner/{}/kmer/hap2_list.txt.gz".format(get_kmer_source(wc.tumor)),
     output:
         "nanomonsv/hifi/{tumor}.nanomonsv.new_result.sv_typed.txt"
     message:
@@ -199,7 +201,9 @@ rule nanomonsv_postprocess_hifi:
             {params.tumor} \
             {params.output_dir} \
             {input.bam} \
-            {SCRIPTS_DIR} &> {log}
+            {SCRIPTS_DIR} \
+            {input.hap1_list} \
+            {input.hap2_list} &> {log}
         touch {output}
         """
 
@@ -207,6 +211,8 @@ rule nanomonsv_postprocess_ont:
     input:
         result="nanomonsv/ont/{tumor}.nanomonsv.result.txt",
         bam=lambda wc: "bam_refiner/{}/ont/{}_bam_refined.sorted.bam".format(wc.tumor, wc.tumor),
+        hap1_list=lambda wc: "bam_refiner/{}/kmer/hap1_list.txt.gz".format(get_kmer_source(wc.tumor)),
+        hap2_list=lambda wc: "bam_refiner/{}/kmer/hap2_list.txt.gz".format(get_kmer_source(wc.tumor)),
     output:
         "nanomonsv/ont/{tumor}.nanomonsv.new_result.sv_typed.txt"
     message:
@@ -230,7 +236,9 @@ rule nanomonsv_postprocess_ont:
             {params.tumor} \
             {params.output_dir} \
             {input.bam} \
-            {SCRIPTS_DIR} &> {log}
+            {SCRIPTS_DIR} \
+            {input.hap1_list} \
+            {input.hap2_list} &> {log}
         touch {output}
         """
 

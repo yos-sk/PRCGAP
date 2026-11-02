@@ -376,14 +376,14 @@ properties:
 
   mutation_seqtypes:
     type: string
-    enum: ["primary", "all"]
+    enum: ["primary", "hifi", "ont", "all"]
     description: |
       which sequencing types the point-mutation callers run on. `primary`
       (default) calls on one seqtype, HiFi when both are present: SNV/INDEL
       calling is validated on HiFi, and the ONT arm is the more expensive of the
-      two while adding calls without that support. `all` calls on every seqtype
-      available for both tumor and normal. SV (nanomonsv) and methylation always
-      use every available seqtype.
+      two while adding calls without that support. `hifi` / `ont` call on that
+      seqtype only. `all` calls on every seqtype available for both tumor and
+      normal. SV (nanomonsv) and methylation always use every available seqtype.
 
   mutation_caller:
     type: string
@@ -417,18 +417,23 @@ properties:
       scheduler allocation, so leaving it unset forks one worker per physical
       core. 0 disables postprocess parallelism entirely.
 
-  clairs_model:
-    type: string
+  clairs_platform_hifi:
+    type: ["string", "null"]
     description: |
-      ClairS platform model (applies to every seqtype that ClairS runs on).
-      Default hifi_sequel2. Pick the value matching your data: hifi_sequel2 or
-      hifi_revio for HiFi; ont_r10_dorado_sup_5khz_ssrs or
-      ont_r10_dorado_sup_4khz for ONT.
-    enum:
-      - hifi_sequel2
-      - hifi_revio
-      - ont_r10_dorado_sup_5khz_ssrs
-      - ont_r10_dorado_sup_4khz
+      ClairS --platform for HiFi data; required when ClairS runs on HiFi
+      (setup_workflow.py --clairs-platform-hifi). hifi_sequel2 for Sequel II,
+      hifi_revio for Revio. "" = unset.
+    enum: [null, "", hifi_sequel2, hifi_revio]
+
+  clairs_platform_ont:
+    type: ["string", "null"]
+    description: |
+      ClairS --platform for ONT data; required when ClairS runs on ONT
+      (setup_workflow.py --clairs-platform-ont). Match the flow cell / basecaller:
+      R9.4.1 -> ont_r9_guppy; R10.4.1 guppy -> ont_r10_guppy; R10.4.1 dorado
+      -> ont_r10_dorado_{sup,hac}_{5khz,4khz} (sup 5kHz: _ssrs recommended,
+      _ss = synthetic-only training). "" = unset.
+    enum: [null, "", ont_r10_dorado_sup_5khz_ssrs, ont_r10_dorado_sup_5khz_ss, ont_r10_dorado_sup_4khz, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_4khz, ont_r10_guppy, ont_r9_guppy]
 
   pileup_no_baq:
     type: ["boolean", "string"]
