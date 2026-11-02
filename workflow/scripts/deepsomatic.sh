@@ -20,6 +20,11 @@ ASSEMBLY_HAP2=$7
 THREAD=${8:-16}
 # DeepSomatic model type: PACBIO for HiFi, ONT for ONT.
 MODEL_TYPE=${9:-PACBIO}
+# postprocess_variants' own worker count. Its default is the node's online core
+# count and it ignores both --num_shards and the scheduler allocation, so on a
+# many-core host it forks one worker per host core and the job's virtual memory
+# runs to hundreds of GB, tripping SGE's s_vmem limit.
+POSTPROCESS_CPUS=${10:-1}
 
 mkdir -p ${OUTPUT_DIR}
 cat ${ASSEMBLY_HAP1} ${ASSEMBLY_HAP2} > ${OUTPUT_DIR}/reference.fa
@@ -34,6 +39,7 @@ run_deepsomatic \
     --sample_name_tumor=${TUMOR} \
     --sample_name_normal=${NORMAL} \
     --num_shards=${THREAD} \
+    --postprocess_variants_extra_args="cpus=${POSTPROCESS_CPUS}" \
     --logging_dir=${OUTPUT_DIR}/logs \
     --intermediate_results_dir=${OUTPUT_DIR}/intermediate_results_dir 
 

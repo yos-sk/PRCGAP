@@ -129,8 +129,10 @@ parse_arguments <- function() {
   opt <- parse_args(OptionParser(option_list = option_list))
 
   # Validate required arguments
+  # annotation is optional: without it the cen/sat rectangles come from
+  # --chm13_censat alone, which needs no per-assembly annotation file.
   required_args <- c("input1", "input2", "cbs1", "cbs2", "output",
-                     "sample", "table1", "table2", "annotation")
+                     "sample", "table1", "table2")
   missing_args <- required_args[sapply(required_args, function(x) is.null(opt[[x]]))]
 
   if (length(missing_args) > 0) {
@@ -535,11 +537,24 @@ transform_annotation_to_chr_coords <- function(annotation_file, ref_table, chr_i
 
   df <- process_ref_table(ref_table)
 
-  # Contig-based annotation placed on the bin axis.
-  annotation_raw <- read.table(gzfile(annotation_file), sep = "\t",
-                               header = FALSE, comment.char = "")
-  contig_annot <- process_annotation(annotation_raw, df) %>%
-    select(chr, start_pos, end_pos)
+  # Contig-based annotation placed on the bin axis. Optional, and an empty file
+  # is treated the same as none: read.table stops on one ("no lines available in
+  # input") rather than returning zero rows.
+  # A bgzipped empty BED still carries an EOF block, so its size is not 0 --
+  # the read itself has to be guarded.
+  contig_annot <- data.frame(chr = character(), start_pos = numeric(),
+                             end_pos = numeric())
+  if (!is.null(annotation_file) && nzchar(annotation_file) &&
+      file.exists(annotation_file)) {
+    annotation_raw <- tryCatch(
+      read.table(gzfile(annotation_file), sep = "\t", header = FALSE,
+                 comment.char = ""),
+      error = function(e) NULL)
+    if (!is.null(annotation_raw) && nrow(annotation_raw) > 0) {
+      contig_annot <- process_annotation(annotation_raw, df) %>%
+        select(chr, start_pos, end_pos)
+    }
+  }
 
   # CHM13 gap-fill: recover satellite that lands in the unassigned gaps.
   gap_annot <- lapply(chr_info$chr_order, function(cn) {
@@ -565,8 +580,17 @@ transform_annotation_to_chr_coords <- function(annotation_file, ref_table, chr_i
 # Load and process reference table
 load_reference_table <- function(table_file) {
   ref_table <- read.table(table_file, sep = "\t", header = FALSE, comment.char = "")
-  colnames(ref_table) <- c("name", "contig_start", "contig_end",
-                           "strand", "chr", "ref_start", "ref_end")
+  # make_reference_table.py writes 7 columns; make_reference_table_v2.py appends
+  # an 8th (matched) that only postprocess_sex_chrom.py reads. Name the seven
+  # this script uses and leave any extra column under its read.table name, so
+  # both table versions load.
+  base_names <- c("name", "contig_start", "contig_end",
+                  "strand", "chr", "ref_start", "ref_end")
+  if (ncol(ref_table) < length(base_names)) {
+    stop(sprintf("ref.table %s has %d columns, expected at least %d",
+                 table_file, ncol(ref_table), length(base_names)))
+  }
+  colnames(ref_table)[seq_along(base_names)] <- base_names
 
   return(ref_table)
 }

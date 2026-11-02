@@ -28,7 +28,10 @@
 
 
 def _mut_other_vcf(wildcards):
-    """Return the bgzipped+tabix-indexed VCF used for the `other` cross-check.
+    """Return the bgzipped+tabix-indexed VCF used for the `other` cross-check,
+    or an empty list when only one caller runs (ClairS disabled). The
+    `point_mutation_other` column is then left blank rather than pulling the
+    unselected caller's whole chain into the DAG.
 
     The raw `deepsomatic/{tumor}/{seqtype}` / `clairs/{tumor}/{seqtype}`
     directory outputs aren't tracked at the file level, so we always go
@@ -40,6 +43,8 @@ def _mut_other_vcf(wildcards):
     (clairs_postprocess_prepare concatenates output.vcf + indel.vcf;
     deepsomatic_postprocess_prepare copies output.vcf as-is).
     """
+    if len(mutation_callers()) < 2:
+        return []
     other_tool = "deepsomatic" if wildcards.tool == "clairs" else "clairs"
     return "{}_post/{}/{}/output.tabix.vcf.gz".format(
         other_tool, wildcards.tumor, wildcards.seqtype)

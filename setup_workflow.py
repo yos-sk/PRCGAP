@@ -34,7 +34,13 @@ _RESOURCE_DEFAULTS = [
     ("bam_refiner", 16, 128000),
     ("assembly_bwa_index", 1, 16000),
     ("methylation", 16, 128000),
-    ("copynumber", 16, 128000),
+    ("copynumber", 8, 48000),
+    ("copynumber_reference", 1, 8000),
+    ("copynumber_ref_table", 8, 48000),
+    ("copynumber_ref_table_final", 1, 8000),
+    ("copynumber_depth", 4, 16000),
+    ("copynumber_segment", 1, 8000),
+    ("copynumber_plot", 1, 8000),
     ("nanomonsv_parse", 16, 128000),
     ("nanomonsv_get", 16, 240000),
     ("nanomonsv_postprocess", 1, 30000),
@@ -66,6 +72,32 @@ _RESOURCE_DEFAULTS = [
     ("bed2vcf_mut", 1, 8000),
     ("liftvcf_mut", 1, 16000),
 ]
+
+
+# Rules split out of a formerly monolithic one inherit the parent rule's CLI
+# resources unless their own flag was passed, so an existing invocation that only
+# sets --copynumber-threads / --copynumber-mem-mb still sizes every split job.
+_RESOURCE_INHERIT = {
+    "copynumber_ref_table": "copynumber",
+    "copynumber_depth": "copynumber",
+    "copynumber_segment": "copynumber",
+    "copynumber_plot": "copynumber",
+}
+
+
+def _apply_resource_inheritance(args):
+    """Copy a parent rule's resources onto children whose flags were defaulted."""
+    declared = {name: (threads, mem_mb) for name, threads, mem_mb in _RESOURCE_DEFAULTS}
+    for child, parent in _RESOURCE_INHERIT.items():
+        if child not in declared or parent not in declared:
+            continue
+        for idx, attr in ((0, "threads"), (1, "mem_mb")):
+            parent_val = getattr(args, f"{parent}_{attr}")
+            if parent_val == declared[parent][idx]:
+                continue  # parent left at its default; nothing to propagate
+            if getattr(args, f"{child}_{attr}") != declared[child][idx]:
+                continue  # child was set explicitly; keep it
+            setattr(args, f"{child}_{attr}", parent_val)
 
 
 def _abs(path):
@@ -174,6 +206,10 @@ def create_config(args):
         # ---- optional nanomonsv steps (not used in the paper) ----
         "run_nanomonsv_connect": args.run_nanomonsv_connect,
         "run_nanomonsv_merge": args.run_nanomonsv_merge,
+        # ---- optional ClairS caller (DeepSomatic always runs) ----
+        "run_clairs": args.run_clairs,
+        # ---- DeepSomatic postprocess_variants worker count ----
+        "deepsomatic_postprocess_variants_cpus": args.deepsomatic_postprocess_variants_cpus,
         # ---- ClairS platform model ----
         "clairs_model": args.clairs_model,
         # ---- annotation resources (optional) ----
@@ -421,11 +457,10 @@ Examples:
                              "fills assembly gaps with reference satellite (optional). "
                              "CHM13 chromosome lengths are derived at plot time from "
                              "the --chm13-fasta via chromosome_length.py.")
-    parser.add_argument("--pileup-no-baq", default="false",
-                        choices=["true", "false"],
+    parser.add_argument("--pileup-no-baq", action="store_true", default=False,
                         help="pass --no-BAQ to samtools mpileup in the "
-                             "clairs/deepsomatic pileup step (default: false). "
-                             "true skips BAQ computation, reducing memory/CPU.")
+                             "clairs/deepsomatic pileup step (default off). "
+                             "Skips BAQ computation, reducing memory/CPU.")
     parser.add_argument("--run-nanomonsv-connect", action="store_true", default=False,
                         help="run the optional nanomonsv connect step "
                              "(not used in the paper; default off).")
@@ -433,6 +468,16 @@ Examples:
                         help="run the optional nanomonsv merge step combining "
                              "HiFi+ONT results (not used in the paper; default "
                              "off; only runs when both seqtypes are present).")
+    parser.add_argument("--deepsomatic-postprocess-variants-cpus", type=int, default=1,
+                        help="worker count for DeepSomatic's postprocess_variants "
+                             "(default 1). Its own default is the node's core "
+                             "count and ignores the scheduler allocation.")
+    parser.add_argument("--run-clairs", action="store_true", default=False,
+                        help="also run the ClairS point-mutation caller (with its "
+                             "postprocess and SNV/INDEL annotation) alongside "
+                             "DeepSomatic (default off). With both callers the "
+                             "annotation's point_mutation_other column cross-checks "
+                             "them; with DeepSomatic alone it is left blank.")
     parser.add_argument("--clairs-model", default="hifi_sequel2",
                         choices=["hifi_sequel2", "hifi_revio",
                                  "ont_r10_dorado_sup_5khz_ssrs",
@@ -507,6 +552,7 @@ Examples:
                              "(ignored when --profile is set)")
 
     args = parser.parse_args()
+    _apply_resource_inheritance(args)
 
     config_path = Path(args.output)
     runner_path = Path(args.runner)

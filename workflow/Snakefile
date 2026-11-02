@@ -77,9 +77,10 @@ def get_all_targets():
                 "annotate_sv/{}/{}.{}.PRCGAP.nanomonsv_results.reclassified.txt".format(tumor, tumor, seqtype))
 
         # point-mutation postprocess leaves + annotation
-        # (per caller × per available seqtype; annotation additionally per mode)
+        # (per caller × per available seqtype; annotation additionally per mode).
+        # ClairS is optional (config run_clairs); DeepSomatic always runs.
         for seqtype in seqtypes:
-            for tool in ("clairs", "deepsomatic"):
+            for tool in mutation_callers():
                 targets.append(
                     "{}_post/{}/{}/{}.haplotyped.bed".format(tool, tumor, seqtype, tumor))
                 for mode in ("snv", "indel"):

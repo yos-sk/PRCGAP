@@ -853,7 +853,18 @@ def main():
     output_dir = os.path.dirname(args.output_file)
     tmpdir_rmsk = tempfile.mkdtemp()
     # tmpdir_rmsk = "tmp"
-    subprocess.check_call(["RepeatMasker", "-species", "human", args.output_file + ".tmp.fasta", "-dir", tmpdir_rmsk])
+    # RepeatMasker caches its species library in `$HOME/.RepeatMaskerCache`,
+    # falling back to the working directory. Either way the location is shared by
+    # every concurrent invocation, so the hifi and ont insert_classify jobs of one
+    # sample race on it: one deletes the half-built cache while the other is
+    # using it and makeblastdb dies (exit 135). Point HOME at this invocation's
+    # own scratch directory so the cache is private and node-local -- rebuilding
+    # it costs about a minute and buys a deterministic run.
+    rmsk_env = dict(os.environ)
+    rmsk_env["HOME"] = tmpdir_rmsk
+    subprocess.check_call(["RepeatMasker", "-species", "human",
+                           args.output_file + ".tmp.fasta", "-dir", tmpdir_rmsk],
+                          env = rmsk_env)
 
     summarize_rmsk(tmpdir_rmsk + '/' + os.path.basename(args.output_file + ".tmp.fasta") + ".out", args.output_file + ".tmp.rmsk.txt")
 

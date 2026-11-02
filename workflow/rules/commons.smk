@@ -141,6 +141,16 @@ def get_threads(tool, default=8):
     """Get thread count for a tool from config or use default."""
     return config.get("resources", {}).get(tool, {}).get("threads", default)
 
+def mutation_callers():
+    """Point-mutation callers to run: DeepSomatic always, ClairS when run_clairs."""
+    if str(config.get("run_clairs", False)).strip().lower() == "true":
+        return ["clairs", "deepsomatic"]
+    return ["deepsomatic"]
+
+def pileup_no_baq():
+    """'true'/'false' for pileup.sh: pass --no-BAQ to samtools mpileup (default off)."""
+    return "true" if str(config.get("pileup_no_baq", False)).strip().lower() == "true" else "false"
+
 def get_mem_mb(tool, default=32000):
     """Get memory (MB) for a tool from config or use default."""
     return config.get("resources", {}).get(tool, {}).get("mem_mb", default)

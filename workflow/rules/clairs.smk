@@ -189,7 +189,7 @@ rule clairs_postprocess_pileup:
     params:
         tumor="{tumor}",
         output_dir="clairs_post/{tumor}/{seqtype}",
-        no_baq=config.get("pileup_no_baq", "false"),
+        no_baq=pileup_no_baq(),
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:

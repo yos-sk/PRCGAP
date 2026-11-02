@@ -44,8 +44,26 @@ resources:
     threads: 16
     mem_mb: 128000
   copynumber:
-    threads: 16
-    mem_mb: 128000
+    threads: 8
+    mem_mb: 48000
+  copynumber_reference:
+    threads: 1
+    mem_mb: 8000
+  copynumber_ref_table:
+    threads: 8
+    mem_mb: 48000
+  copynumber_ref_table_final:
+    threads: 1
+    mem_mb: 8000
+  copynumber_depth:
+    threads: 4
+    mem_mb: 16000
+  copynumber_segment:
+    threads: 1
+    mem_mb: 8000
+  copynumber_plot:
+    threads: 1
+    mem_mb: 8000
   nanomonsv_parse:
     threads: 16
     mem_mb: 128000
@@ -140,7 +158,12 @@ copynumber_plot_sex_chrom: true  # force chrX/chrY onto the plot even if absent 
 chm13_censat: ""                 # CHM13 cenSat v2.1 BED(.gz): fill assembly gaps in the plot (optional)
 # CHM13 chr lengths for the plot's terminal margin are derived at plot time from
 # chm13_fasta via chromosome_length.py (no separate file needed).
-pileup_no_baq: false
+pileup_no_baq: false             # true = --no-BAQ in the pileup step (setup_workflow.py --pileup-no-baq)
+
+deepsomatic_postprocess_variants_cpus: 1   # postprocess_variants workers (its default = host core count)
+
+# ---- optional point-mutation caller ----
+run_clairs: false                # true = also run ClairS alongside DeepSomatic (setup_workflow.py --run-clairs)
 
 # ---- annotation resources (set to "" to skip the corresponding step) ----
 gff_file: ""                   # tabix-indexed liftoff GFF for SV/SNV/INDEL gene annotation

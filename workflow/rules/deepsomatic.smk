@@ -20,6 +20,7 @@ rule deepsomatic:
         tumor="{tumor}",
         normal=lambda wc: get_paired_normal(wc.tumor),
         model_type=lambda wc: "ONT" if wc.seqtype == "ont" else "PACBIO",
+        postprocess_cpus=config.get("deepsomatic_postprocess_variants_cpus", 1),
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:
@@ -41,7 +42,8 @@ rule deepsomatic:
             {input.assembly_hap1} \
             {input.assembly_hap2} \
             {threads} \
-            {params.model_type} &> {log}
+            {params.model_type} \
+            {params.postprocess_cpus} &> {log}
         """
 
 # ====================================================================
@@ -189,7 +191,7 @@ rule deepsomatic_postprocess_pileup:
     params:
         tumor="{tumor}",
         output_dir="deepsomatic_post/{tumor}/{seqtype}",
-        no_baq=config.get("pileup_no_baq", "false"),
+        no_baq=pileup_no_baq(),
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:

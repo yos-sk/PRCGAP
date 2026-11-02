@@ -100,13 +100,17 @@ properties:
             description: memory per job in MB (default 32000)
       copynumber:
         type: object
+        description: |
+          parent of the copynumber_* split rules: setup_workflow.py copies these
+          onto copynumber_ref_table / _depth / _segment / _plot whose own flags
+          were left at their defaults
         properties:
           threads:
             type: number
             description: number of threads (default 8)
           mem_mb:
             type: number
-            description: memory per job in MB (default 32000)
+            description: memory per job in MB (default 48000)
       nanomonsv_parse:
         type: object
         properties:
@@ -310,6 +314,30 @@ properties:
     type: string
     description: sex of the sample (female or male)
     enum: ["female", "male"]
+
+  pileup_no_baq:
+    type: ["boolean", "string"]
+    description: |
+      pass --no-BAQ to samtools mpileup in the clairs/deepsomatic pileup step
+      (default false; setup_workflow.py --pileup-no-baq sets it true).
+
+  deepsomatic_postprocess_variants_cpus:
+    type: integer
+    minimum: 0
+    description: |
+      worker count passed to DeepSomatic's postprocess_variants via
+      --postprocess_variants_extra_args (default 1). Its own default is the
+      node's online core count and it ignores both --num_shards and the
+      scheduler allocation, so leaving it unset forks one worker per physical
+      core. 0 disables postprocess parallelism entirely.
+
+  run_clairs:
+    type: ["boolean", "string"]
+    description: |
+      also run the ClairS point-mutation caller, its postprocess and SNV/INDEL
+      annotation alongside DeepSomatic (default false). With both callers the
+      point_mutation_other column cross-checks them; with DeepSomatic alone it
+      is left blank.
 
   run_nanomonsv_connect:
     type: boolean
