@@ -22,10 +22,12 @@ implementation (in the Snakemake workflow they are the `annotate_*` rules).
 
 ## Container images
 
-`images` is a symlink to `../images`. Pull the images there with
+The scripts read the images from `./images`. Pull them into `../images` and link that
+directory here:
 
 ```bash
-cd ../images && bash pull_images.sh
+(cd ../images && bash pull_images.sh)
+ln -s ../images images
 ```
 
 | Image | Docker tag |
