@@ -420,8 +420,9 @@ def create_config(args):
         "mutation_seqtypes": args.mutation_seqtypes,
         "caller_solo_contig_min_bp": args.caller_solo_contig_min_bp,
         "deepsomatic_postprocess_variants_cpus": args.deepsomatic_postprocess_variants_cpus,
-        # ---- ClairS platform model ----
-        "clairs_model": args.clairs_model,
+        # ---- ClairS --platform per seqtype ----
+        "clairs_platform_hifi": args.clairs_platform_hifi,
+        "clairs_platform_ont": args.clairs_platform_ont,
         # ---- annotation resources (optional) ----
         "chain_to_grch38": _abs(args.chain_to_grch38) or "",
         "chain_to_chm13": _abs(args.chain_to_chm13) or "",
@@ -629,6 +630,30 @@ def write_runner(args, config_path: Path, runner_path: Path):
     runner_path.chmod(runner_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def _check_clairs_platforms(parser, args):
+    """When ClairS runs (--mutation-caller clairs/both), require a ClairS
+    platform for each seqtype --mutation-seqtypes selects. With the
+    --tumor/--normal options the pair's seqtypes are known here; for a
+    hand-written sheet the workflow re-checks per tumor."""
+    if args.mutation_caller not in ("clairs", "both"):
+        return
+    hifi, ont = args.clairs_platform_hifi, args.clairs_platform_ont
+    need = {"hifi": ["hifi"], "ont": ["ont"]}.get(args.mutation_seqtypes, [])
+    if args.mutation_seqtypes in ("primary", "all") and (args.tumor or args.normal):
+        paired = [st for st in ("hifi", "ont")
+                  if getattr(args, "tumor_" + st) and getattr(args, "normal_" + st)]
+        need = paired[:1] if args.mutation_seqtypes == "primary" else paired
+    missing = [st for st in need if not (hifi if st == "hifi" else ont)]
+    if missing:
+        parser.error("ClairS calls on %s data (--mutation-seqtypes %s); give "
+                     "--clairs-platform-%s matching it"
+                     % (missing[0], args.mutation_seqtypes, missing[0]))
+    if not hifi and not ont:
+        parser.error("--mutation-caller %s needs --clairs-platform-hifi and/or "
+                     "--clairs-platform-ont matching the data ClairS calls on"
+                     % args.mutation_caller)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Setup PRCGAP Snakemake workflow (config + runner script)",
@@ -796,13 +821,14 @@ Examples:
                              "fills assembly gaps with reference satellite (optional). "
                              "CHM13 chromosome lengths are derived at plot time from "
                              "the --chm13-fasta via chromosome_length.py.")
-    parser.add_argument("--mutation-seqtypes", choices=["primary", "all"],
+    parser.add_argument("--mutation-seqtypes", choices=["primary", "hifi", "ont", "all"],
                         default="primary",
                         help="which sequencing types the point-mutation callers "
                              "run on: 'primary' (default) uses one seqtype, HiFi "
-                             "when both are present; 'all' uses every seqtype "
-                             "available for both tumor and normal. SV and "
-                             "methylation always use every available seqtype.")
+                             "when both are present; 'hifi' / 'ont' use that "
+                             "seqtype only; 'all' uses every seqtype available "
+                             "for both tumor and normal. SV and methylation "
+                             "always use every available seqtype.")
     parser.add_argument("--pileup-no-baq", default="true",
                         choices=["true", "false"],
                         help="pass --no-BAQ to samtools mpileup in the "
@@ -858,13 +884,18 @@ Examples:
                         help="worker count for DeepSomatic's postprocess_variants "
                              "(default 1). Its own default is the node's core "
                              "count and ignores the scheduler allocation.")
-    parser.add_argument("--clairs-model", default="hifi_sequel2",
-                        choices=["hifi_sequel2", "hifi_revio",
-                                 "ont_r10_dorado_sup_5khz_ssrs",
-                                 "ont_r10_dorado_sup_4khz"],
-                        help="ClairS platform model (default: hifi_sequel2). "
-                             "Choose to match your data; applies to every "
-                             "seqtype ClairS runs on.")
+    parser.add_argument("--clairs-platform-hifi", default="",
+                        choices=["hifi_sequel2", "hifi_revio"],
+                        help="ClairS --platform for HiFi data (required when "
+                             "ClairS calls on HiFi): hifi_sequel2 (Sequel II) "
+                             "or hifi_revio (Revio).")
+    parser.add_argument("--clairs-platform-ont", default="",
+                        choices=["ont_r10_dorado_sup_5khz_ssrs", "ont_r10_dorado_sup_5khz_ss", "ont_r10_dorado_sup_4khz", "ont_r10_dorado_hac_5khz", "ont_r10_dorado_hac_4khz", "ont_r10_guppy", "ont_r9_guppy"],
+                        help="ClairS --platform for ONT data (required when "
+                             "ClairS calls on ONT). R9.4.1: ont_r9_guppy; "
+                             "R10.4.1 guppy: ont_r10_guppy; R10.4.1 dorado: "
+                             "ont_r10_dorado_{sup,hac}_{5khz,4khz} (sup 5kHz: "
+                             "_ssrs recommended).")
 
     # ---------- annotation resources (all optional) ----------
     ann_group = parser.add_argument_group(
@@ -991,6 +1022,7 @@ Examples:
 
     args = parser.parse_args()
     _apply_resource_inheritance(args)
+    _check_clairs_platforms(parser, args)
 
     config_path = Path(args.output)
     runner_path = Path(args.runner)

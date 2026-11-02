@@ -2,6 +2,7 @@
 import pandas as pd
 import os
 import re
+import sys
 from snakemake.utils import validate
 
 # read sample sheet
@@ -96,15 +97,27 @@ def mutation_seqtypes(tumor):
     calling is validated on HiFi, and on a HiFi+ONT sample the ONT caller arm is
     the more expensive of the two while adding calls that carry no such support.
     SV (nanomonsv) and methylation stay per-seqtype -- both have their own reason
-    to want ONT. Set mutation_seqtypes: all to call on every paired seqtype.
+    to want ONT. Set mutation_seqtypes: all to call on every paired seqtype,
+    or hifi / ont to call on that seqtype only (a tumor whose pair lacks it is
+    skipped with a warning). ClairS and DeepSomatic share the list, so the
+    point_mutation_other cross-check always finds the other caller's VCF.
     """
-    mode = str(config.get("mutation_seqtypes", "primary")).lower()
+    mode = str(config.get("mutation_seqtypes", "primary")).strip().lower()
     if mode == "all":
         return paired_seqtypes(tumor)
-    if mode != "primary":
+    if mode == "primary":
+        return [primary_paired_seqtype(tumor)]
+    if mode not in ("hifi", "ont"):
         raise ValueError(
-            "mutation_seqtypes must be 'primary' or 'all', got " + repr(mode))
-    return [primary_paired_seqtype(tumor)]
+            "mutation_seqtypes must be 'primary', 'hifi', 'ont' or 'all', got "
+            + repr(mode))
+    if mode not in paired_seqtypes(tumor):
+        sys.stderr.write(
+            "WARNING: mutation_seqtypes=" + mode + " but tumor " + str(tumor)
+            + " and its paired normal have no " + mode
+            + " data; skipping point-mutation calling for this tumor.\n")
+        return []
+    return [mode]
 
 
 def primary_paired_seqtype(tumor):
@@ -174,6 +187,35 @@ def mutation_callers():
             "mutation_caller must be 'deepsomatic', 'clairs' or 'both'; got "
             + repr(config.get("mutation_caller")))
     return [choice]
+
+def clairs_platform(seqtype):
+    """ClairS --platform for a seqtype (config clairs_platform_hifi / _ont).
+    There is no default: the right model depends on the instrument (Sequel II
+    vs Revio) and ONT chemistry/basecaller (R9.4.1 vs R10.4.1, guppy vs dorado,
+    4 vs 5 kHz), so it must be set for every seqtype ClairS runs on."""
+    key = "clairs_platform_" + seqtype
+    value = str(config.get(key, "") or "").strip()
+    if not value:
+        raise ValueError(
+            "ClairS runs on " + seqtype + " data, but " + key + " is not set "
+            "(setup_workflow.py --clairs-platform-" + seqtype + "). Choose the "
+            "ClairS platform matching the " + seqtype + " data.")
+    if not value.startswith(seqtype + "_"):
+        raise ValueError(
+            key + "=" + value + " is not a " + seqtype + " ClairS platform")
+    return value
+
+def check_clairs_platforms(tumors):
+    """Fail at DAG build if a seqtype ClairS will run on has no platform set."""
+    if "clairs" not in mutation_callers():
+        return
+    if config.get("clairs_model"):
+        raise ValueError(
+            "clairs_model was replaced by clairs_platform_hifi / "
+            "clairs_platform_ont (one ClairS platform per seqtype); "
+            "re-run setup_workflow.py or edit the config.")
+    for seqtype in sorted({s for t in tumors for s in mutation_seqtypes(t)}):
+        clairs_platform(seqtype)
 
 
 # Every sample must provide at least one sequencing type.

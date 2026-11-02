@@ -118,6 +118,7 @@ def get_all_targets():
     # and copy number to primary_paired_seqtype().
     targets = []
     all_samples = list(samples.index.get_level_values("sample"))
+    check_clairs_platforms(tumors)
 
     # methylation (per sample, per available seqtype)
     for sample in all_samples:

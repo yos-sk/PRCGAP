@@ -79,6 +79,8 @@ python3 ../../setup_workflow.py \
     --assembly-hap2 resources/asm/HG008N.hap2.chr20.fa \
     --sex female \
     --mutation-caller "${MUTATION_CALLER}" \
+    --clairs-platform-hifi hifi_revio \
+    --clairs-platform-ont  ont_r10_dorado_sup_5khz_ssrs \
     --no-run-dna-brnn --no-run-chain-files \
     --no-run-line1 --no-run-simple-repeat \
     --chm13-fasta            resources/reference/chm13v2.0_maskedY_rCRS_chr20.fa \
