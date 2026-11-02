@@ -10,15 +10,12 @@ INPUT=$4
 OUTPUT_DIR=$5
 DATA=$6
 
-echo ${SUMBIT_DIR}
-echo ${SUBMIT_CMD}
-echo ${SCRIPT_RELATIVE_PATH}
-
-FASTQ_DIR=`dirname ${FASTQ}`
+#echo ${SUMBIT_DIR}
+#echo ${SUBMIT_CMD}
+#echo ${SCRIPT_RELATIVE_PATH}
 
 singularity exec \
-    --bind /lustre1/,${FASTQ_DIR} \
-    ./images/bam_refiner_v0.3.6b.sif \
+    ./images/bam_refiner.sif \
     /bin/bash \
     ./scripts/bam_refiner/bam_refiner.sh \
     ${SAMPLE} \

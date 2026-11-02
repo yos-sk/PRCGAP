@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# Copy-number analysis of one tumor on the reference tables of ref_table.sh:
+#   1. windowed tumor/normal depth: samtools depth -a -Q 40 on the reference-table intervals,
+#      copynumber_window.py
+#   2. cbs.R (auto ploidy unless PLOIDY_HAP1/2 are given), split_gaps.py
+#   3. plot_copy_number.R
+#
+# Usage: copynumber.sh TUMOR NORMAL LABEL TUMOR_BAM NORMAL_BAM SEX REFERENCE_DIR CHM13_CENSAT CENSAT_BED
+#            HAP1_SATELLITE HAP2_SATELLITE BIN_WIDTH PLOIDY_HAP1 PLOIDY_HAP2 HAP1_LABEL HAP2_LABEL
+#            WORK_DIR OUTPUT_DIR THREADS   (run inside the copynumber image)
+# PLOIDY_HAP1 / PLOIDY_HAP2: "-" for automatic estimation (both must be given to override)
+# CENSAT_BED: cenSat annotation of the assembly for the plot; "-" to use HAP1_SATELLITE + HAP2_SATELLITE
+
 set -xv
 set -o errexit
 set -o nounset
@@ -7,80 +19,95 @@ set -o pipefail
 
 TUMOR=$1
 NORMAL=$2
-ASSEMBLY_HAP1=$3
-ASSEMBLY_HAP2=$4
-TUMOR_BAM=$5
-NORMAL_BAM=$6
-REFERENCE=$7
-WORK_DIR=$8
-OUTPUT_DIR=$9
+LABEL=$3
+TUMOR_BAM=$4
+NORMAL_BAM=$5
+SEX=$6
+REFERENCE_DIR=$7
+CHM13_CENSAT=$8
+CENSAT_BED=$9
 HAP1_SATELLITE=${10}
 HAP2_SATELLITE=${11}
-SEX=${12}
+BIN_WIDTH=${12}
+PLOIDY_HAP1=${13}
+PLOIDY_HAP2=${14}
+HAP1_LABEL=${15}
+HAP2_LABEL=${16}
+WORK_DIR=${17}
+OUTPUT_DIR=${18}
+THREADS=${19:-16}
+
+CHM13_LENGTHS=${REFERENCE_DIR}/chm13_${SEX}_chrom_length.txt
 
 mkdir -p ${WORK_DIR}
-mkdir -p ${OUTPUT_DIR}
-if [ ${SEX} = "female" ]; then
-    awk '/^>/ {p = ($0 !~ /^>chrY/)} p' ${REFERENCE} > ${WORK_DIR}/reference_noY.fa
-    REFERENCE=${WORK_DIR}/reference_noY.fa
-fi
 
-for hap in hap1 hap2
-do
-    if [ $hap = "hap1" ]; then
-        INPUT_FASTA=${ASSEMBLY_HAP1}
-        SATELLITE=${HAP1_SATELLITE}
-    else
-        INPUT_FASTA=${ASSEMBLY_HAP2}
-        SATELLITE=${HAP2_SATELLITE}
-    fi
-
-    # 1. Mask alpha satellite in contigs
-    #dna-brnn \
-    #    -Ai ${DNANN_MODEL} \
-    #    -t16 ${INPUT_FASTA} > ${WORK_DIR}/${NORMAL}.${hap}_dna-brnn.bed
-    #gzip -f ${WORK_DIR}/${NORMAL}.${hap}_dna-brnn.bed
-
-    #singularity exec ~/sandbox/bedtools/bedtools_v2.31.0.sif \
-    #bedtools maskfasta \
-    #    -fi ${INPUT_FASTA} \
-    #    -bed ${SATELLITE} \
-    #    -fo ${WORK_DIR}/${NORMAL}.${hap}.masked.fa
-
-    # 2. Align ref to contigs
-    #~/bin/minimap2/2.28/minimap2-2.28_x64-linux/minimap2 -cx asm5 -t 16 ${WORK_DIR}/${NORMAL}.${hap}.masked.fa ${REFERENCE} > ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.paf
-    #grep -v 'tp:A:S' ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.paf > ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.rmsec.paf
-
-    # 3. Make correspondence table between contigs and ref
-    python3 ./scripts/copynumber/make_reference_table.py \
-        -i ${WORK_DIR}/${NORMAL}.${hap}.masked_ref.rmsec.paf \
-    > ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table
+for hap in hap1 hap2; do
+    [ -s ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table ] || { echo "ERROR: run ref_table.sh first: missing ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table" >&2; exit 1; }
 done
 
-# 4. Postprocess sex chromosomes for male samples
-if [ ${SEX} = "male" ]; then
-    python3 ./scripts/copynumber/postprocess_sex_chrom.py \
-        --hap1 ${OUTPUT_DIR}/${NORMAL}.hap1.ref.table \
-        --hap2 ${OUTPUT_DIR}/${NORMAL}.hap2.ref.table \
-        --out1 ${OUTPUT_DIR}/${NORMAL}.hap1.ref.table \
-        --out2 ${OUTPUT_DIR}/${NORMAL}.hap2.ref.table
-fi
-
-# 5. Calculate depth
-for hap in hap1 hap2
-do
-    awk '{print $1 "\t" $2 "\t" $3}' ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${WORK_DIR}/${NORMAL}.${hap}.ref.bed
-    ~/bin/samtools/samtools-1.17/samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${TUMOR_BAM} -Q 40 | awk '{print $1 "\t" $2 - 1 "\t" $2 "\t" $3}' >  ${WORK_DIR}/${TUMOR}.${hap}.depth.bed
-    ~/bin/samtools/samtools-1.17/samtools depth -@ 16 -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${NORMAL_BAM} -Q 40 | awk '{print $1 "\t" $2 - 1 "\t" $2 "\t" $3}' >  ${WORK_DIR}/${NORMAL}.${hap}.depth.bed
-    ~/bin/samtools/samtools-1.17/htslib-1.17/bgzip -f -@ 16  ${WORK_DIR}/${TUMOR}.${hap}.depth.bed
-    ~/bin/samtools/samtools-1.17/htslib-1.17/tabix -p bed ${WORK_DIR}/${TUMOR}.${hap}.depth.bed.gz
-    ~/bin/samtools/samtools-1.17/htslib-1.17/bgzip -f -@ 16  ${WORK_DIR}/${NORMAL}.${hap}.depth.bed
-    ~/bin/samtools/samtools-1.17/htslib-1.17/tabix -p bed ${WORK_DIR}/${NORMAL}.${hap}.depth.bed.gz
-    singularity exec ~/sandbox/nanomonsv/nanomonsv-v0.8.0.sif \
+# 1. Windowed depth
+for hap in hap1 hap2; do
+    REF_TABLE=${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table
+    awk '{print $1 "\t" $2 "\t" $3}' ${REF_TABLE} > ${WORK_DIR}/${NORMAL}.${hap}.ref.bed
+    for entry in ${TUMOR}:${TUMOR_BAM} ${NORMAL}:${NORMAL_BAM}; do
+        SAMPLE=${entry%%:*}
+        BAM=${entry#*:}
+        samtools depth -@ ${THREADS} -a -b ${WORK_DIR}/${NORMAL}.${hap}.ref.bed ${BAM} -Q 40 \
+            | awk '{print $1 "\t" $2 - 1 "\t" $2 "\t" $3}' \
+            | bgzip -@ ${THREADS} > ${WORK_DIR}/${SAMPLE}.${hap}.depth.bed.gz
+        tabix -f -p bed ${WORK_DIR}/${SAMPLE}.${hap}.depth.bed.gz
+    done
     python3 ./scripts/copynumber/copynumber_window.py \
         -t ${WORK_DIR}/${TUMOR}.${hap}.depth.bed.gz \
         -n ${WORK_DIR}/${NORMAL}.${hap}.depth.bed.gz \
-        -r ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table > ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv
+        -r ${REF_TABLE} > ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv
 done
 
-echo ${?}
+# 2. CBS and gap splitting
+for hap in hap1 hap2; do
+    if [ ${PLOIDY_HAP1} != "-" ] && [ ${PLOIDY_HAP2} != "-" ]; then
+        if [ ${hap} = "hap1" ]; then PLOIDY_FLAGS="-p ${PLOIDY_HAP1}"; else PLOIDY_FLAGS="-p ${PLOIDY_HAP2}"; fi
+    else
+        PLOIDY_FLAGS="-a"
+    fi
+    Rscript ./scripts/copynumber/cbs.R \
+        -i ${OUTPUT_DIR}/${TUMOR}.${hap}.copynumber.tsv \
+        -s ${LABEL} \
+        -o ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.txt \
+        ${PLOIDY_FLAGS} \
+        -w ${BIN_WIDTH} \
+        --ploidy-out ${OUTPUT_DIR}/${TUMOR}.${hap}.ploidy 2>&1 | tee ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.log
+    python3 ./scripts/copynumber/split_gaps.py \
+        ${OUTPUT_DIR}/${NORMAL}.${hap}.ref.table \
+        ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.txt \
+        > ${OUTPUT_DIR}/${TUMOR}.${hap}.cbs.split.txt
+done
+
+# 3. Plot
+if [ ${CENSAT_BED} != "-" ]; then
+    ANNOTATION=${CENSAT_BED}
+else
+    zcat ${HAP1_SATELLITE} ${HAP2_SATELLITE} | bgzip -c > ${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz
+    ANNOTATION=${WORK_DIR}/${NORMAL}.satellite.annotation.bed.gz
+fi
+
+Rscript ./scripts/copynumber/plot_copy_number.R \
+    -i ${OUTPUT_DIR}/${TUMOR}.hap1.copynumber.tsv \
+    -j ${OUTPUT_DIR}/${TUMOR}.hap2.copynumber.tsv \
+    -k ${OUTPUT_DIR}/${TUMOR}.hap1.cbs.split.txt \
+    -l ${OUTPUT_DIR}/${TUMOR}.hap2.cbs.split.txt \
+    -o ${OUTPUT_DIR}/${TUMOR}.copynumber.png \
+    -s ${LABEL} \
+    -p $(< ${OUTPUT_DIR}/${TUMOR}.hap1.ploidy) \
+    -t $(< ${OUTPUT_DIR}/${TUMOR}.hap2.ploidy) \
+    -q ${OUTPUT_DIR}/${NORMAL}.hap1.ref.table \
+    -r ${OUTPUT_DIR}/${NORMAL}.hap2.ref.table \
+    -a ${ANNOTATION} \
+    -w ${BIN_WIDTH} \
+    --hap1_label ${HAP1_LABEL} \
+    --hap2_label ${HAP2_LABEL} \
+    --plot-sex-chrom TRUE \
+    --chm13_censat ${CHM13_CENSAT} \
+    --chm13_lengths ${CHM13_LENGTHS}
+
+echo "[copynumber] done: ${TUMOR}"

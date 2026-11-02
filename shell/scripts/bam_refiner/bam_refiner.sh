@@ -15,7 +15,7 @@ DATA=$7
 
 ext="${INPUT##*.}"
 if [ $ext = "bam" ]; then
-    bash run_refine.sh \
+    bash /tools/bam_refiner-0.3.6/run_refine.sh \
         -d \
         -b ${INPUT} \
         -h ${HAP1_ASSEMBLY} \
@@ -27,7 +27,7 @@ if [ $ext = "bam" ]; then
         -t 16 \
         -u ${DATA}
 else
-    bash run_refine.sh \
+    bash /tools/bam_refiner-0.3.6/run_refine.sh \
         -d \
         -f ${INPUT} \
         -h ${HAP1_ASSEMBLY} \
@@ -37,7 +37,8 @@ else
         -p \
         -s ${SAMPLE} \
         -t 16 \
-        -u ${DATA}
+        -u ${DATA} \
+        -m "-y"
 fi
 
 echo ${?}

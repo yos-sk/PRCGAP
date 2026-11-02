@@ -23,10 +23,10 @@ samtools view -@ 16 -F 2308 -Shb ${INPUT_BAM} > ${WORK_DIR}/${base_name%.bam}.fi
 samtools index -@ 16 ${WORK_DIR}/${base_name%.bam}.filtered.bam
 
 if [ ${TYPE} = "HiFi" ]; then
-    ~/bin/pb-CpG-tools/pb-CpG-tools-v2.3.2-x86_64-unknown-linux-gnu/bin/aligned_bam_to_cpg_scores \
+    aligned_bam_to_cpg_scores \
         --bam ${WORK_DIR}/${base_name%.bam}.filtered.bam \
         --output-prefix ${OUTPUT_DIR}/${SAMPLE}_methylation \
-        --model ~/bin/pb-CpG-tools/pb-CpG-tools-v2.3.2-x86_64-unknown-linux-gnu/models/pileup_calling_model.v1.tflite \
+        --model /opt/pb-CpG-tools-v2.3.2-x86_64-unknown-linux-gnu/models/pileup_calling_model.v1.tflite \
         --threads 16 \
         --pileup-mode model
     find ${OUTPUT_DIR} -type f -name "${SAMPLE}_methylation*.bed" | while read f; do

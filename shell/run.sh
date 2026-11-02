@@ -5,7 +5,13 @@ set -ex
 CONF=$1
 source ${CONF}
 
+# Extra paths to bind into the containers (data outside $HOME and the current directory)
+if [ -n "${BIND_PATHS:-}" ]; then
+    export SINGULARITY_BIND=${BIND_PATHS} APPTAINER_BIND=${BIND_PATHS}
+fi
+
 DATE=`date +"%Y%m%d"`
+mkdir -p log/${DATE}/${OUTPUT}
 
 # 1. bam_refiner
 if [ ${BAM_REFINER} = "TRUE" ]; then
@@ -24,9 +30,32 @@ if [ ${BAM_REFINER} = "TRUE" ]; then
             ${INPUT} \
             ${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi/output \
             hifi
-    done 
+    done
 
-    # 1-2. bam_refiner_ont
+    # 1-2. bam_refiner_hifi for methylation (optional) 
+    if [ ${TUMOR_METHYLATION_HIFI} != ${TUMOR_HIFI} ]; then
+        sbatch -J ${TUMOR}_${ASSEMBLER}_bam_refiner_methylation_hifi -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_bam_refiner_methylation_hifi.err -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_bam_refiner_methylation_hifi.out \
+            scripts/bam_refiner/run_bam_refiner.sh \
+            ${TUMOR} \
+            ${ASSEMBLY_HAP1} \
+            ${ASSEMBLY_HAP2} \
+            ${TUMOR_METHYLATION_HIFI}\
+            ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/methylation_hifi/output \
+            hifi
+    fi    
+
+    if [ ${CONTROL_METHYLATION_HIFI} != ${CONTROL_HIFI} ]; then
+        sbatch -J ${CONTROL}_${ASSEMBLER}_bam_refiner_methylation_hifi -e log/${DATE}/${OUTPUT}/${CONTROL}_${ASSEMBLER}_bam_refiner_methylation_hifi.err -o log/${DATE}/${OUTPUT}/${CONTROL}_${ASSEMBLER}_bam_refiner_methylation_hifi.out \
+            scripts/bam_refiner/run_bam_refiner.sh \
+            ${CONTROL} \
+            ${ASSEMBLY_HAP1} \
+            ${ASSEMBLY_HAP2} \
+            ${CONTROL_METHYLATION_HIFI} \
+            ${OUTPUT_PREFIX}/bam_refiner/${CONTROL}/methylation_hifi/output \
+            hifi
+    fi    
+
+    # 1-3. bam_refiner_ont
     for SAMPLE in ${TUMOR} ${CONTROL}; do
         if [ ${SAMPLE} = ${TUMOR} ]; then
             INPUT=${TUMOR_ONT}
@@ -55,7 +84,7 @@ if [ ${METHYLATION} = "TRUE" ]; then
                 BAM_REFINER_HIFI_JOBID=$(echo $(squeue -noheader --format %i --name ${SAMPLE}_${ASSEMBLER}_bam_refiner_hifi) | cut -d ' ' -f 2)
                 INPUT_BAM=${OUTPUT_PREFIX}/bam_refiner/${SAMPLE}/hifi/output/${SAMPLE}_bam_refined.sorted.bam
             fi
-            
+           
             sbatch --dependency=afterok:${BAM_REFINER_HIFI_JOBID} -J ${SAMPLE}_${ASSEMBLER}_methylation_hifi -e log/${DATE}/${OUTPUT}/${SAMPLE}_${ASSEMBLER}_methylation_hifi.err -o log/${DATE}/${OUTPUT}/${SAMPLE}_${ASSEMBLER}_methylation_hifi.out \
                 scripts/methylation/run_methylation.sh \
                     ${SAMPLE} \
@@ -116,6 +145,7 @@ if [ ${COPYNUMBER} = "TRUE" ]; then
             scripts/copynumber/run_copynumber.sh \
                 ${TUMOR} \
                 ${CONTROL} \
+                ${OUTPUT} \
                 ${ASSEMBLY_HAP1} \
                 ${ASSEMBLY_HAP2} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
@@ -123,14 +153,22 @@ if [ ${COPYNUMBER} = "TRUE" ]; then
                 ${REFERENCE} \
                 ${OUTPUT_PREFIX}/copynumber/${TUMOR}/workspace \
                 ${OUTPUT_PREFIX}/copynumber/${TUMOR}/output \
-                ${HAP1_SATELLITE} \
-                ${HAP2_SATELLITE} \
-                ${SEX}
+                ${SEX} \
+                ${CHM13_CENSAT} \
+                ${CENSAT_BED:--} \
+                ${HAP1_SATELLITE:--} \
+                ${HAP2_SATELLITE:--} \
+                ${CN_BIN_WIDTH:-0.05} \
+                ${CN_PLOIDY_HAP1:--} \
+                ${CN_PLOIDY_HAP2:--} \
+                ${CN_HAP1_LABEL:-Haplotype1} \
+                ${CN_HAP2_LABEL:-Haplotype2}
     else
         sbatch -J ${TUMOR}_${ASSEMBLER}_copynumber -e log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_copynumber.err -o log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_copynumber.out \
             scripts/copynumber/run_copynumber.sh \
                 ${TUMOR} \
                 ${CONTROL} \
+                ${OUTPUT} \
                 ${ASSEMBLY_HAP1} \
                 ${ASSEMBLY_HAP2} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
@@ -138,9 +176,16 @@ if [ ${COPYNUMBER} = "TRUE" ]; then
                 ${REFERENCE} \
                 ${OUTPUT_PREFIX}/copynumber/${TUMOR}/workspace \
                 ${OUTPUT_PREFIX}/copynumber/${TUMOR}/output \
-                ${HAP1_SATELLITE} \
-                ${HAP2_SATELLITE} \
-                ${SEX}
+                ${SEX} \
+                ${CHM13_CENSAT} \
+                ${CENSAT_BED:--} \
+                ${HAP1_SATELLITE:--} \
+                ${HAP2_SATELLITE:--} \
+                ${CN_BIN_WIDTH:-0.05} \
+                ${CN_PLOIDY_HAP1:--} \
+                ${CN_PLOIDY_HAP2:--} \
+                ${CN_HAP1_LABEL:-Haplotype1} \
+                ${CN_HAP2_LABEL:-Haplotype2}
     fi
 fi
 
@@ -420,12 +465,14 @@ if [ ${CLAIRS_POST} = "TRUE" ]; then
         sbatch --dependency=afterok:${CLAIRS_JOB_ID} -J ${TUMOR}_${ASSEMBLER}_clairs_postprocess -e ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_clairs_postprocess.err -o ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_clairs_postprocess.out \
             scripts/mutation_postprocess/run_postprocess.sh \
                 ${TUMOR} \
-                ${OUTPUT_PREFIX}/clairs/${TUMOR} \ ${ASSEMBLY_HAP1} \
+                ${OUTPUT_PREFIX}/clairs/${TUMOR} \
+                ${ASSEMBLY_HAP1} \
                 ${ASSEMBLY_HAP2} \
                 ${OUTPUT_PREFIX}/clairs_post/${TUMOR} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
+                ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_kmer_ratio.txt \
                 ClairS \
-                ./images/mutation_postprocess-v0.1.3b.sif
+                ./images/point_mutation_postprocess.sif
     else
         sbatch -J ${TUMOR}_${ASSEMBLER}_clairs_postprocess -e ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_clairs_postprocess.err -o ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_clairs_postprocess.out \
             scripts/mutation_postprocess/run_postprocess.sh \
@@ -435,14 +482,15 @@ if [ ${CLAIRS_POST} = "TRUE" ]; then
                 ${ASSEMBLY_HAP2} \
                 ${OUTPUT_PREFIX}/clairs_post/${TUMOR} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
+                ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_kmer_ratio.txt \
                 ClairS \
-                ./images/mutation_postprocess-v0.1.3b.sif
+                ./images/point_mutation_postprocess.sif
     fi
 fi
 
 # 13. deepsomatic postprocess
 if [ ${DEEPSOMATIC_POST} = "TRUE" ]; then
-    if [ ${CLAIRS} = "TRUE" ]; then
+    if [ ${DEEPSOMATIC} = "TRUE" ]; then
         DEEPSOMATIC_JOB_ID=$(echo $(squeue -noheader --format %i --name ${TUMOR}_${ASSEMBLER}_deepsomatic) | cut -d ' ' -f 2)
         sbatch --dependency=afterok:${DEEPSOMATIC_JOB_ID} -J ${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess -e ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess.err -o ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess.out \
             scripts/mutation_postprocess/run_postprocess.sh \
@@ -452,8 +500,9 @@ if [ ${DEEPSOMATIC_POST} = "TRUE" ]; then
                 ${ASSEMBLY_HAP2} \
                 ${OUTPUT_PREFIX}/deepsomatic_post/${TUMOR} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
+                ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_kmer_ratio.txt\
                 DeepSomatic \
-                ./images/mutation_postprocess-v0.1.3b.sif
+                ./images/point_mutation_postprocess.sif
     else
         sbatch -J ${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess -e ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess.err -o ./log/${DATE}/${OUTPUT}/${TUMOR}_${ASSEMBLER}_deepsomatic_postprocess.out \
             scripts/mutation_postprocess/run_postprocess.sh \
@@ -463,7 +512,8 @@ if [ ${DEEPSOMATIC_POST} = "TRUE" ]; then
                 ${ASSEMBLY_HAP2} \
                 ${OUTPUT_PREFIX}/deepsomatic_post/${TUMOR} \
                 ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_bam_refined.sorted.bam \
+                ${OUTPUT_PREFIX}/bam_refiner/${TUMOR}/hifi/output/${TUMOR}_kmer_ratio.txt\
                 DeepSomatic \
-                ./images/mutation_postprocess-v0.1.3b.sif
+                ./images/point_mutation_postprocess.sif
     fi
 fi

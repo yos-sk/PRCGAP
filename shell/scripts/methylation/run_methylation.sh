@@ -14,8 +14,8 @@ TYPE=$7
 ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
 
 singularity exec \
-    --bind /lustre1/,${ASSEMBLY_DIR}/ \
-    ./images/methylation_utils-v0.1.2.sif \
+    --bind ${ASSEMBLY_DIR}/ \
+    ./images/methylation.sif \
     bash ./scripts/methylation/methylation.sh \
         ${SAMPLE} \
         ${INPUT_BAM} \

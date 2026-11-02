@@ -13,7 +13,7 @@ ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
 
 singularity exec \
     --bind ${ASSEMBLY_DIR}/ \
-    ./images/clairs-v0.4.0.sif \
+    ./images/clairs.sif \
     bash ./scripts/clairs/clairs.sh \
         ${TUMOR_BAM} \
         ${CONTROL_BAM} \

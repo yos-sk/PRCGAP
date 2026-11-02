@@ -19,7 +19,7 @@ TOOL=$8
 IMAGE=$9
 
 
-mkdir -p ${OUTPUT_DIR}/realign
+mkdir -p ${OUTPUT_DIR}/realign/log ${OUTPUT_DIR}/pileup/log ${OUTPUT_DIR}/log
 cat ${HAP1_FASTA} ${HAP2_FASTA} > ${OUTPUT_DIR}/reference.fa
 singularity exec ${IMAGE} samtools faidx ${OUTPUT_DIR}/reference.fa
 

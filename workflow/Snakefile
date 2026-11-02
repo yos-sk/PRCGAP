@@ -40,10 +40,12 @@ def get_all_targets():
     # Targets are enumerated per available sequencing type so HiFi-only and
     # ONT-only samples work. Per-sample rules (methylation) use the sample's own
     # seqtypes; tumor/normal callers (nanomonsv, clairs, deepsomatic,
-    # copynumber, SV/mutation annotation) use paired_seqtypes(tumor) — the
-    # seqtypes present for BOTH the tumor and its paired normal.
+    # copynumber, SV annotation) use paired_seqtypes(tumor) — the seqtypes
+    # present for BOTH the tumor and its paired normal. Point-mutation callers
+    # (clairs, deepsomatic) use the subset chosen by mutation_seqtypes(tumor).
     targets = []
     all_samples = list(samples.index.get_level_values("sample"))
+    check_clairs_platforms(tumors)
 
     # methylation (per sample, per available seqtype)
     for sample in all_samples:
@@ -77,9 +79,11 @@ def get_all_targets():
                 "annotate_sv/{}/{}.{}.PRCGAP.nanomonsv_results.reclassified.txt".format(tumor, tumor, seqtype))
 
         # point-mutation postprocess leaves + annotation
-        # (per caller × per available seqtype; annotation additionally per mode).
+        # (per caller × per selected seqtype; annotation additionally per mode).
         # ClairS is optional (config run_clairs); DeepSomatic always runs.
-        for seqtype in seqtypes:
+        # The seqtypes come from config mutation_seqtypes (primary = HiFi
+        # preferred, one seqtype; hifi / ont / all), shared by both callers.
+        for seqtype in mutation_seqtypes(tumor):
             for tool in mutation_callers():
                 targets.append(
                     "{}_post/{}/{}/{}.haplotyped.bed".format(tool, tumor, seqtype, tumor))

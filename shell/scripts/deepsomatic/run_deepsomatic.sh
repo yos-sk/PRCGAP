@@ -15,7 +15,7 @@ ASSEMBLY_DIR=`dirname ${ASSEMBLY_HAP1}`
 
 singularity exec \
     --bind ${ASSEMBLY_DIR}/ \
-    ./images/DeepSomatic-v1.8.0.sif \
+    ./images/deepsomatic.sif \
     bash ./scripts/deepsomatic/deepsomatic.sh \
         ${TUMOR} \
         ${NORMAL} \

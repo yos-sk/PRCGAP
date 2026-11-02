@@ -27,24 +27,19 @@
 
 set -euo pipefail
 
-# Generate the sample sheet (one tumor-normal pair sharing one assembly).
-# --no-check-exists: configure does not require the multi-GB read/asm files to
-# be staged yet. --no-absolutize: keep the resource paths relative to test/.
-python3 ../set_sample_sheet.py \
-    --tumor  HG008T \
-    --tumor-ont  ../resources/reads/ont/HG008T.chr20.ont.bam \
-    --tumor-hifi ../resources/reads/hifi/HG008T.chr20.hifi.bam \
-    --normal HG008N \
-    --normal-ont  ../resources/reads/ont/HG008N.chr20.ont.bam \
-    --normal-hifi ../resources/reads/hifi/HG008N.chr20.hifi.bam \
-    --assembly-hap1 ../resources/asm/HG008N.hap1.chr20.fa \
-    --assembly-hap2 ../resources/asm/HG008N.hap2.chr20.fa \
-    --no-absolutize --no-check-exists \
-    --output config/test_samples.tsv \
-    --force
-
+# The sample sheet (one tumor-normal pair sharing one assembly) is written by
+# setup_workflow.py from the --tumor/--normal options. Paths are relative to
+# test/ and absolutised; a missing read/assembly file fails here.
 python3 ../setup_workflow.py \
     --samplesheet config/test_samples.tsv \
+    --tumor  HG008T \
+    --tumor-ont   resources/reads/ont/HG008T.chr20.ont.bam \
+    --tumor-hifi  resources/reads/hifi/HG008T.chr20.hifi.bam \
+    --normal HG008N \
+    --normal-ont  resources/reads/ont/HG008N.chr20.ont.bam \
+    --normal-hifi resources/reads/hifi/HG008N.chr20.hifi.bam \
+    --assembly-hap1 resources/asm/HG008N.hap1.chr20.fa \
+    --assembly-hap2 resources/asm/HG008N.hap2.chr20.fa \
     --chm13-fasta resources/reference/chm13v2.0_maskedY_rCRS.fa \
     --sex female \
     --hap1-satellite         resources/annotation/HG008N.hap1_dna-brnn.bed.gz \
@@ -68,7 +63,11 @@ python3 ../setup_workflow.py \
     --grch38-fasta           resources/reference/GRCh38.d1.vd1.fa \
     --copynumber-plot-sex-chrom false \
     --chm13-censat           resources/reference/chm13v2.0_censat_v2.1.bed.gz \
-    --pileup-no-baq true \
+    --pileup-no-baq \
+    --run-clairs \
+    --mutation-seqtypes all \
+    --clairs-platform-hifi hifi_revio \
+    --clairs-platform-ont ont_r10_dorado_sup_5khz_ssrs \
     --singularity-bind $HOME \
     --output-dir ./HG008 \
     --output config/test_config.yaml \

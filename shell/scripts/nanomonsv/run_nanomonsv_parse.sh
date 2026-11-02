@@ -14,7 +14,7 @@ OUTPUT_DIR=$3
 
 
 singularity exec \
-    ./images/nanomonsv-v0.8.0.sif \
+    ./images/nanomonsv.sif \
     bash ./scripts/nanomonsv/nanomonsv_parse.sh \
     ${SAMPLE} \
     ${INPUT_BAM} \

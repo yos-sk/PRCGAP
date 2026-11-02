@@ -3,10 +3,11 @@
 # ====================================================================
 #
 # ClairS runs per available sequencing type ({seqtype} = hifi / ont). The
-# per-seqtype tumor/normal BAMs come from bam_refiner. The ClairS platform
-# model is selected via config["clairs_model"] (default hifi_sequel2); valid
-# values: hifi_sequel2, hifi_revio, ont_r10_dorado_sup_5khz_ssrs,
-# ont_r10_dorado_sup_4khz.
+# per-seqtype tumor/normal BAMs come from bam_refiner. The ClairS --platform
+# is set per seqtype (config clairs_platform_hifi / clairs_platform_ont, no
+# default; see clairs_platform() in commons.smk), since the model depends on the
+# instrument (hifi_sequel2 / hifi_revio) and ONT chemistry/basecaller
+# (ont_r9_guppy, ont_r10_guppy, ont_r10_dorado_{sup,hac}_{5khz,4khz}, ...).
 
 rule clairs:
     input:
@@ -21,7 +22,7 @@ rule clairs:
     params:
         tumor="{tumor}",
         normal=lambda wc: get_paired_normal(wc.tumor),
-        model=config.get("clairs_model", "hifi_sequel2"),
+        model=lambda wc: clairs_platform(wc.seqtype),
     wildcard_constraints:
         seqtype="hifi|ont",
     threads:

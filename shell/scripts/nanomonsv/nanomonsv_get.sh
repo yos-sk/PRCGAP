@@ -47,8 +47,7 @@ else
         --qv15
 fi
 
-#python3 /nanomonsv/misc/add_simple_repeat.py \
-python3 /opt/miniconda3/envs/nanomonsv/lib/python3.12/site-packages/misc/add_simple_repeat.py \
+python3 ./scripts/nanomonsv/add_simple_repeat.py \
     ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.txt \
     ${OUTPUT_DIR}/${TUMOR}.nanomonsv.result.filt.txt \
     ${SIMPLE_REPEAT}

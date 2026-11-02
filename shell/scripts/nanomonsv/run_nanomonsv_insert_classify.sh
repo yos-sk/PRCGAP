@@ -11,7 +11,7 @@ HAP2_ASSEMBLY=$5
 GTF_FILE=$6
 LINE1_BED=$7
 
-singularity exec ./images/nanomonsv-v0.8.0.sif \
+singularity exec ./images/nanomonsv.sif \
     bash ./scripts/nanomonsv/nanomonsv_insert_classify.sh \
         ${SV_FILE} \
         ${OUTPUT_DIR} \

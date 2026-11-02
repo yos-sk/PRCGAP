@@ -164,6 +164,20 @@ deepsomatic_postprocess_variants_cpus: 1   # postprocess_variants workers (its d
 
 # ---- optional point-mutation caller ----
 run_clairs: false                # true = also run ClairS alongside DeepSomatic (setup_workflow.py --run-clairs)
+# Which sequencing types the point-mutation callers (DeepSomatic / ClairS) run on
+# (setup_workflow.py --mutation-seqtypes):
+#   primary  one seqtype only, HiFi when both are present (default)
+#   hifi     HiFi only        ont   ONT only
+#   all      every seqtype available for both tumor and normal
+# SV (nanomonsv) and methylation always use every available seqtype.
+mutation_seqtypes: primary
+# ClairS --platform per seqtype; required for each seqtype ClairS runs on
+# (no default: pick the one matching your data).
+#   HiFi: hifi_sequel2 | hifi_revio
+#   ONT : ont_r10_dorado_sup_5khz_ssrs | ont_r10_dorado_sup_5khz_ss | ont_r10_dorado_sup_4khz
+#         ont_r10_dorado_hac_5khz | ont_r10_dorado_hac_4khz | ont_r10_guppy | ont_r9_guppy (R9.4.1)
+clairs_platform_hifi: ""
+clairs_platform_ont: ""
 
 # ---- annotation resources (set to "" to skip the corresponding step) ----
 gff_file: ""                   # tabix-indexed liftoff GFF for SV/SNV/INDEL gene annotation

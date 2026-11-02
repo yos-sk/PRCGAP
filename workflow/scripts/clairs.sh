@@ -11,9 +11,10 @@ OUTPUT_DIR=$3
 ASSEMBLY_HAP1=$4
 ASSEMBLY_HAP2=$5
 THREAD=${6:-16}
-# ClairS platform model. One of: hifi_sequel2, hifi_revio,
-# ont_r10_dorado_sup_5khz_ssrs, ont_r10_dorado_sup_4khz.
-MODEL=${7:-hifi_sequel2}
+# ClairS --platform (set per seqtype by the workflow; no default), e.g.
+# hifi_sequel2, hifi_revio, ont_r9_guppy, ont_r10_guppy,
+# ont_r10_dorado_sup_5khz_ssrs, ont_r10_dorado_sup_4khz, ...
+MODEL=$7
 
 mkdir -p ${OUTPUT_DIR}
 cat ${ASSEMBLY_HAP1} ${ASSEMBLY_HAP2} > ${OUTPUT_DIR}/reference.fa

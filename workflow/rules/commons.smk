@@ -1,6 +1,7 @@
 # import basic packages
 import pandas as pd
 import os
+import sys
 from snakemake.utils import validate
 
 # read sample sheet
@@ -146,6 +147,69 @@ def mutation_callers():
     if str(config.get("run_clairs", False)).strip().lower() == "true":
         return ["clairs", "deepsomatic"]
     return ["deepsomatic"]
+
+MUTATION_SEQTYPES_CHOICES = ("primary", "hifi", "ont", "all")
+
+def mutation_seqtypes(tumor):
+    """Seqtypes the point-mutation callers (DeepSomatic, and ClairS when
+    run_clairs) run on for a tumor, per config["mutation_seqtypes"]
+    (same key and values as the devel branch):
+
+      primary (default) -> one seqtype, HiFi preferred (primary_paired_seqtype)
+      hifi / ont        -> that seqtype only
+      all               -> every paired seqtype
+
+    Only seqtypes present for both the tumor and its paired normal are
+    eligible; a requested seqtype the pair lacks is skipped with a warning.
+    Both callers share the list, so the point_mutation_other cross-check
+    always finds the other caller's VCF for the same seqtype.
+    """
+    mode = str(config.get("mutation_seqtypes", "primary")).strip().lower()
+    if mode not in MUTATION_SEQTYPES_CHOICES:
+        raise ValueError(
+            "mutation_seqtypes must be one of " + ", ".join(MUTATION_SEQTYPES_CHOICES)
+            + " (got " + repr(mode) + ")")
+    paired = paired_seqtypes(tumor)
+    if mode == "primary":
+        return paired[:1]
+    if mode == "all":
+        return paired
+    if mode not in paired:
+        sys.stderr.write(
+            "WARNING: mutation_seqtypes=" + mode + " but tumor " + str(tumor)
+            + " and its paired normal have no " + mode
+            + " data; skipping point-mutation calling for this tumor.\n")
+        return []
+    return [mode]
+
+def clairs_platform(seqtype):
+    """ClairS --platform for a seqtype (config clairs_platform_hifi / _ont).
+    There is no default: the right model depends on the instrument (Sequel II
+    vs Revio) and ONT chemistry/basecaller (R9.4.1 vs R10.4.1, guppy vs dorado,
+    4 vs 5 kHz), so it must be set for every seqtype ClairS runs on."""
+    key = "clairs_platform_" + seqtype
+    value = str(config.get(key, "") or "").strip()
+    if not value:
+        raise ValueError(
+            "run_clairs is on and ClairS calls on " + seqtype + " data, but "
+            + key + " is not set (setup_workflow.py --clairs-platform-" + seqtype
+            + "). Choose the ClairS platform matching the " + seqtype + " data.")
+    if not value.startswith(seqtype + "_"):
+        raise ValueError(
+            key + "=" + value + " is not a " + seqtype + " ClairS platform")
+    return value
+
+def check_clairs_platforms(tumors):
+    """Fail at DAG build if a seqtype ClairS will run on has no platform set."""
+    if "clairs" not in mutation_callers():
+        return
+    if config.get("clairs_model"):
+        raise ValueError(
+            "clairs_model was replaced by clairs_platform_hifi / "
+            "clairs_platform_ont (one ClairS platform per seqtype); "
+            "re-run setup_workflow.py or edit the config.")
+    for seqtype in sorted({s for t in tumors for s in mutation_seqtypes(t)}):
+        clairs_platform(seqtype)
 
 def pileup_no_baq():
     """'true'/'false' for pileup.sh: pass --no-BAQ to samtools mpileup (default off)."""

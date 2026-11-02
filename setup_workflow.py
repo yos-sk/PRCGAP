@@ -5,12 +5,188 @@ Generates config.yaml and a runner shell script from command-line arguments.
 """
 
 import argparse
+import csv
 import json
 import os
 import stat
 import sys
 import yaml
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Sample sheet
+# ---------------------------------------------------------------------------
+# A run is one tumor-normal pair on one assembly: the per-assembly annotation in
+# config is global, so a second pair needs its own config and output dir. The
+# sheet is therefore written from --tumor/--normal here rather than by a separate
+# command; --samplesheet alone still reads a sheet somebody wrote by hand.
+
+COLUMNS = ["sample", "type", "ont", "hifi", "assembly_hap1", "assembly_hap2"]
+SEQTYPE_FIELDS = ("ont", "hifi")
+PATH_FIELDS = ("ont", "hifi", "assembly_hap1", "assembly_hap2")
+
+
+def _split_paths(value):
+    """Split a (possibly comma-separated) data field into individual paths."""
+    return [p.strip() for p in str(value).split(",") if p.strip()]
+
+
+def _join_paths(paths):
+    return ",".join(paths)
+
+
+def _collect_paths(values):
+    """Flatten a repeatable + comma-separated path option into one path list."""
+    paths = []
+    for value in values or []:
+        paths.extend(_split_paths(value))
+    return paths
+
+
+class SampleSheetError(Exception):
+    """Raised for invalid sample-sheet input."""
+
+
+def build_rows_from_pair(args):
+    """Turn the --tumor/--normal option group into tumor + normal row dicts.
+
+    The assembly is shared by both samples (one assembly per run), so it is
+    given once via --assembly-hap1/--assembly-hap2 and copied into each row.
+    """
+    missing = [
+        flag for flag, value in (
+            ("--tumor", args.tumor),
+            ("--normal", args.normal),
+            ("--assembly-hap1", args.assembly_hap1),
+            ("--assembly-hap2", args.assembly_hap2),
+        ) if not value
+    ]
+    if missing:
+        raise SampleSheetError(
+            "option mode requires " + ", ".join(missing)
+            + " (or pass --samplesheet alone to read an existing sheet)")
+
+    specs = [
+        ("tumor", args.tumor, args.tumor_ont, args.tumor_hifi),
+        ("normal", args.normal, args.normal_ont, args.normal_hifi),
+    ]
+    rows = []
+    for sample_type, name, ont_values, hifi_values in specs:
+        ont = _collect_paths(ont_values)
+        hifi = _collect_paths(hifi_values)
+        # A sample may be HiFi-only or ONT-only; require at least one type.
+        if not ont and not hifi:
+            raise SampleSheetError(
+                f"{sample_type} sample {name}: at least one of "
+                f"--{sample_type}-ont / --{sample_type}-hifi is required")
+        rows.append({
+            "sample": name,
+            "type": sample_type,
+            "ont": _join_paths(ont),
+            "hifi": _join_paths(hifi),
+            "assembly_hap1": args.assembly_hap1,
+            "assembly_hap2": args.assembly_hap2,
+        })
+    return rows
+
+
+def read_input_tsv(path):
+    """Read a draft sample sheet TSV into row dicts."""
+    rows = []
+    with open(path, newline="") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        missing = [c for c in COLUMNS if c not in (reader.fieldnames or [])]
+        if missing:
+            raise SampleSheetError(
+                f"input TSV {path} is missing required columns: {', '.join(missing)}")
+        for raw in reader:
+            rows.append({c: (raw.get(c) or "").strip() for c in COLUMNS})
+    return rows
+
+
+def normalize_and_validate(rows, check_exists=True, absolutize=True):
+    """Validate rows, absolutise paths, and enforce the one-pair-per-run spec."""
+    if not rows:
+        raise SampleSheetError("no samples provided (use --tumor/--normal)")
+
+    seen = set()
+    for row in rows:
+        name = row["sample"]
+        if not name:
+            raise SampleSheetError("a sample has an empty name")
+        if name in seen:
+            raise SampleSheetError(f"duplicate sample name: {name}")
+        seen.add(name)
+
+        if row["type"] not in ("tumor", "normal"):
+            raise SampleSheetError(
+                f"sample {name}: type must be 'tumor' or 'normal', got '{row['type']}'")
+
+        for field in PATH_FIELDS:
+            paths = _split_paths(row[field])
+            if not paths:
+                # ont / hifi are optional (a sample may be HiFi-only or
+                # ONT-only); the "at least one" check below enforces coverage.
+                if field in SEQTYPE_FIELDS:
+                    row[field] = ""
+                    continue
+                raise SampleSheetError(f"sample {name}: empty '{field}' field")
+            if absolutize:
+                paths = [_abs(p) for p in paths]
+            if check_exists:
+                for p in paths:
+                    if not os.path.exists(p):
+                        raise SampleSheetError(
+                            f"sample {name}: {field} path does not exist: {p} "
+                            "(use --no-check-exists if the files live elsewhere)")
+            # assembly_* are single files; ont/hifi may be comma-separated.
+            if field not in SEQTYPE_FIELDS and len(paths) > 1:
+                raise SampleSheetError(
+                    f"sample {name}: {field} must be a single file, got {len(paths)}")
+            row[field] = _join_paths(paths)
+
+        # Enforce that every sample carries at least one sequencing type.
+        if not any(_split_paths(row[f]) for f in SEQTYPE_FIELDS):
+            raise SampleSheetError(
+                f"sample {name}: at least one of {', '.join(SEQTYPE_FIELDS)} "
+                "must be provided")
+
+    normals = [r["sample"] for r in rows if r["type"] == "normal"]
+    tumors = [r["sample"] for r in rows if r["type"] == "tumor"]
+
+    # One run = one normal assembly (the per-assembly annotations are global).
+    if len(normals) == 0:
+        raise SampleSheetError("no normal sample provided (exactly one is required)")
+    if len(normals) > 1:
+        raise SampleSheetError(
+            f"{len(normals)} normal samples ({', '.join(sorted(normals))}); "
+            "a run is tied to one normal assembly. Run distinct TN pairs "
+            "separately (own config + sample sheet + output dir).")
+    if not tumors:
+        print("Warning: no tumor sample provided.", file=sys.stderr)
+
+    assemblies = {(r["assembly_hap1"], r["assembly_hap2"]) for r in rows}
+    if len(assemblies) > 1:
+        raise SampleSheetError(
+            "samples reference more than one assembly pair; the workflow's "
+            "annotation resources are global (one assembly per run). All samples "
+            "must share the same assembly_hap1/assembly_hap2. Distinct assemblies "
+            "must be run separately.")
+
+    return rows
+
+
+def write_sample_sheet(rows, output):
+    out_dir = os.path.dirname(os.path.abspath(output))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    with open(output, "w", newline="") as fh:
+        writer = csv.writer(fh, delimiter="\t", lineterminator="\n")
+        writer.writerow(COLUMNS)
+        for row in rows:
+            writer.writerow([row.get(col, "") for col in COLUMNS])
 
 
 # Directory containing this script (the PRCGAP repo root). Used to default
@@ -208,10 +384,13 @@ def create_config(args):
         "run_nanomonsv_merge": args.run_nanomonsv_merge,
         # ---- optional ClairS caller (DeepSomatic always runs) ----
         "run_clairs": args.run_clairs,
+        # ---- seqtype(s) for DeepSomatic / ClairS ----
+        "mutation_seqtypes": args.mutation_seqtypes,
         # ---- DeepSomatic postprocess_variants worker count ----
         "deepsomatic_postprocess_variants_cpus": args.deepsomatic_postprocess_variants_cpus,
-        # ---- ClairS platform model ----
-        "clairs_model": args.clairs_model,
+        # ---- ClairS --platform per seqtype ----
+        "clairs_platform_hifi": args.clairs_platform_hifi,
+        "clairs_platform_ont": args.clairs_platform_ont,
         # ---- annotation resources (optional) ----
         "chain_to_grch38": _abs(args.chain_to_grch38) or "",
         "chain_to_chm13": _abs(args.chain_to_chm13) or "",
@@ -349,6 +528,29 @@ def write_runner(args, config_path: Path, runner_path: Path):
     runner_path.chmod(runner_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def _check_clairs_platforms(parser, args):
+    """With --run-clairs, require a ClairS platform for each seqtype
+    --mutation-seqtypes selects. With the --tumor/--normal options the pair's
+    seqtypes are known here; for a hand-written sheet the workflow re-checks
+    per tumor."""
+    if not args.run_clairs:
+        return
+    hifi, ont = args.clairs_platform_hifi, args.clairs_platform_ont
+    need = {"hifi": ["hifi"], "ont": ["ont"]}.get(args.mutation_seqtypes, [])
+    if args.mutation_seqtypes in ("primary", "all") and (args.tumor or args.normal):
+        paired = [st for st in ("hifi", "ont")
+                  if getattr(args, "tumor_" + st) and getattr(args, "normal_" + st)]
+        need = paired[:1] if args.mutation_seqtypes == "primary" else paired
+    missing = [st for st in need if not (hifi if st == "hifi" else ont)]
+    if missing:
+        parser.error("ClairS calls on %s data (--mutation-seqtypes %s); give "
+                     "--clairs-platform-%s matching it"
+                     % (missing[0], args.mutation_seqtypes, missing[0]))
+    if not hifi and not ont:
+        parser.error("--run-clairs needs --clairs-platform-hifi and/or "
+                     "--clairs-platform-ont matching the data ClairS calls on")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Setup PRCGAP Snakemake workflow (config + runner script)",
@@ -358,17 +560,31 @@ Examples:
   # 1. Pre-stage images (once)
   bash Dockerfile/pull_images.sh   # populates ./images/<tool>.sif
 
-  # 2. Local execution
+  # 2. A tumor-normal pair. The --tumor/--normal options WRITE --samplesheet;
+  #    a run is one pair on one assembly, so a second pair needs its own config
+  #    and --output-dir.
   python setup_workflow.py \\
-    --samplesheet samples.tsv \\
+    --samplesheet config/samples.tsv \\
+    --tumor  T --tumor-hifi  t.hifi.bam --tumor-ont  t.ont.bam \\
+    --normal N --normal-hifi n.hifi.bam --normal-ont n.ont.bam \\
+    --assembly-hap1 asm/hap1.fa --assembly-hap2 asm/hap2.fa \\
     --chm13-fasta chm13.fa \\
     --jobs 8
 
+  # HiFi-only or ONT-only: omit the other flag. Repeat a flag (or comma-separate)
+  # for several files per type:
+  #   --tumor-hifi t.1.bam --tumor-hifi t.2.bam
+
   # 3. SLURM cluster via profile
   python setup_workflow.py \\
-    --samplesheet samples.tsv \\
+    --samplesheet config/samples.tsv \\
+    --tumor T --tumor-hifi t.bam --normal N --normal-hifi n.bam \\
+    --assembly-hap1 asm/hap1.fa --assembly-hap2 asm/hap2.fa \\
     --chm13-fasta chm13.fa \\
     --profile profile/slurm
+
+  # 4. Reuse a sheet somebody wrote by hand: pass --samplesheet with no pair
+  #    options and it is read as-is.
 
   # Override a single image path:
   python setup_workflow.py ... --bam-refiner-image /path/to/custom.sif
@@ -376,7 +592,35 @@ Examples:
     )
 
     # ---------- Required I/O ----------
-    parser.add_argument("--samplesheet", required=True, help="sample sheet TSV")
+    parser.add_argument("--samplesheet", required=True,
+                        help="sample sheet TSV. Written from the pair options below "
+                             "when any of them is given, otherwise read as-is.")
+
+    pair = parser.add_argument_group(
+        "sample sheet (writes --samplesheet instead of reading it)",
+        "Name the tumor and normal and point each at its ONT and/or HiFi data. "
+        "Each is optional but a sample needs at least one, so HiFi-only and "
+        "ONT-only pairs work. Repeatable, and comma-separated lists are accepted.")
+    pair.add_argument("--tumor", metavar="NAME", help="tumor sample name")
+    pair.add_argument("--tumor-ont", action="append", metavar="PATH",
+                      help="tumor ONT data (fastq.gz or bam). Repeatable.")
+    pair.add_argument("--tumor-hifi", action="append", metavar="PATH",
+                      help="tumor HiFi data (fastq.gz or bam). Repeatable.")
+    pair.add_argument("--normal", metavar="NAME", help="normal sample name")
+    pair.add_argument("--normal-ont", action="append", metavar="PATH",
+                      help="normal ONT data (fastq.gz or bam). Repeatable.")
+    pair.add_argument("--normal-hifi", action="append", metavar="PATH",
+                      help="normal HiFi data (fastq.gz or bam). Repeatable.")
+    pair.add_argument("--assembly-hap1", metavar="FASTA",
+                      help="assembly hap1 fasta, shared by both samples")
+    pair.add_argument("--assembly-hap2", metavar="FASTA",
+                      help="assembly hap2 fasta, shared by both samples")
+    pair.add_argument("--no-check-exists", dest="check_exists",
+                      action="store_false", default=True,
+                      help="do not check that the data files exist yet")
+    pair.add_argument("--no-absolutize", dest="absolutize",
+                      action="store_false", default=True,
+                      help="keep the data paths as given instead of absolutising them")
     parser.add_argument("--chm13-fasta", required=True,
                         help="CHM13 reference FASTA (consumed by copynumber and by the "
                              "INDEL liftvcf_indel_chm13 rule as transanno --query)")
@@ -478,13 +722,27 @@ Examples:
                              "DeepSomatic (default off). With both callers the "
                              "annotation's point_mutation_other column cross-checks "
                              "them; with DeepSomatic alone it is left blank.")
-    parser.add_argument("--clairs-model", default="hifi_sequel2",
-                        choices=["hifi_sequel2", "hifi_revio",
-                                 "ont_r10_dorado_sup_5khz_ssrs",
-                                 "ont_r10_dorado_sup_4khz"],
-                        help="ClairS platform model (default: hifi_sequel2). "
-                             "Choose to match your data; applies to every "
-                             "seqtype ClairS runs on.")
+    parser.add_argument("--mutation-seqtypes", choices=["primary", "hifi", "ont", "all"],
+                        default="primary",
+                        help="which sequencing types the point-mutation callers "
+                             "(DeepSomatic, and ClairS with --run-clairs) run on: "
+                             "'primary' (default) uses one seqtype, HiFi when both "
+                             "are present; 'hifi' / 'ont' use that seqtype only; "
+                             "'all' uses every seqtype available for both tumor "
+                             "and normal. SV and methylation always use every "
+                             "available seqtype.")
+    parser.add_argument("--clairs-platform-hifi", default="",
+                        choices=["hifi_sequel2", "hifi_revio"],
+                        help="ClairS --platform for HiFi data (required when "
+                             "--run-clairs calls on HiFi): hifi_sequel2 "
+                             "(Sequel II) or hifi_revio (Revio).")
+    parser.add_argument("--clairs-platform-ont", default="",
+                        choices=["ont_r10_dorado_sup_5khz_ssrs", "ont_r10_dorado_sup_5khz_ss", "ont_r10_dorado_sup_4khz", "ont_r10_dorado_hac_5khz", "ont_r10_dorado_hac_4khz", "ont_r10_guppy", "ont_r9_guppy"],
+                        help="ClairS --platform for ONT data (required when "
+                             "--run-clairs calls on ONT). R9.4.1: ont_r9_guppy; "
+                             "R10.4.1 guppy: ont_r10_guppy; R10.4.1 dorado: "
+                             "ont_r10_dorado_{sup,hac}_{5khz,4khz} (sup 5kHz: "
+                             "_ssrs recommended).")
 
     # ---------- annotation resources (all optional) ----------
     ann_group = parser.add_argument_group(
@@ -553,14 +811,37 @@ Examples:
 
     args = parser.parse_args()
     _apply_resource_inheritance(args)
+    _check_clairs_platforms(parser, args)
 
     config_path = Path(args.output)
     runner_path = Path(args.runner)
+    sheet_path = Path(args.samplesheet)
 
-    for p in (config_path, runner_path):
+    # Any pair option means the sheet is an output, not an input.
+    writes_sheet = any((args.tumor, args.normal, args.assembly_hap1, args.assembly_hap2,
+                        args.tumor_ont, args.tumor_hifi, args.normal_ont, args.normal_hifi))
+
+    outputs = [config_path, runner_path] + ([sheet_path] if writes_sheet else [])
+    for p in outputs:
         if p.exists() and not args.force:
             print(f"Error: {p} already exists. Use --force to overwrite.")
             sys.exit(1)
+
+    if writes_sheet:
+        try:
+            rows = normalize_and_validate(build_rows_from_pair(args),
+                                          check_exists=args.check_exists,
+                                          absolutize=args.absolutize)
+        except (SampleSheetError, FileNotFoundError) as exc:
+            parser.error(str(exc))
+        sheet_path.parent.mkdir(parents=True, exist_ok=True)
+        write_sample_sheet(rows, str(sheet_path))
+        n_tumor = sum(1 for r in rows if r["type"] == "tumor")
+        print(f"✓ Sample sheet written to {sheet_path}: {len(rows)} samples "
+              f"({n_tumor} tumor, {len(rows) - n_tumor} normal).")
+    elif not sheet_path.exists():
+        parser.error(f"{sheet_path} does not exist; give the --tumor/--normal "
+                     "options to write it")
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config = create_config(args)
